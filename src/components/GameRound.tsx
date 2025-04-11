@@ -71,7 +71,7 @@ const GameRound: React.FC = () => {
           isSelected 
             ? `border-secondary bg-secondary/10 ${feedbackClass}` 
             : 'border-border hover:border-muted-foreground'
-        }`}
+        } mb-3`}
         onClick={() => handleSelect(player.id, drink.id)}
         disabled={!!player.guesses[currentRound.id]}
       >
@@ -104,7 +104,7 @@ const GameRound: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto max-w-3xl animate-fade-in">
+    <div className="container mx-auto max-w-3xl animate-fade-in px-3">
       <div className="flex justify-between items-center mb-6">
         <h1 className="heading-lg">{game.name}</h1>
         <div className="text-sm font-medium text-muted-foreground">
@@ -112,22 +112,26 @@ const GameRound: React.FC = () => {
         </div>
       </div>
       
-      <div className="bg-muted/30 p-4 rounded-xl mb-6 text-center">
+      <div className="bg-muted/30 p-4 rounded-2xl mb-6 text-center">
         <h2 className="heading-md">{currentRound.name}</h2>
         <p className="text-muted-foreground">
           Round {game.currentRound + 1} of {game.rounds.length}
         </p>
       </div>
       
-      <Card className="mb-8">
+      <Card className="mb-8 shadow-sm border border-gray-200 rounded-2xl overflow-hidden">
         <CardHeader>
           <CardTitle className="text-xl">Tasting Cards</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-            <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 mb-4">
+            <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 mb-4 rounded-xl overflow-hidden bg-gray-100">
               {game.players.map(player => (
-                <TabsTrigger key={player.id} value={player.id}>
+                <TabsTrigger 
+                  key={player.id} 
+                  value={player.id}
+                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
+                >
                   {player.name}
                 </TabsTrigger>
               ))}
@@ -142,18 +146,19 @@ const GameRound: React.FC = () => {
                   </p>
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   {game.drinks.map(drink => renderDrinkOption(drink, player))}
                 </div>
               </TabsContent>
             ))}
           </Tabs>
         </CardContent>
-        <CardFooter className="flex justify-end gap-2">
+        <CardFooter className="flex justify-end gap-2 border-t p-4">
           {allPlayersGuessed && game.mode === 'beginner' && !showResults && (
             <Button 
               onClick={handleRevealResults}
               variant="outline"
+              className="rounded-full text-sm"
             >
               Reveal Results
             </Button>
@@ -162,7 +167,7 @@ const GameRound: React.FC = () => {
           <Button 
             onClick={handleNext} 
             disabled={!allPlayersGuessed || (game.mode === 'beginner' && !showResults)}
-            className="btn-primary"
+            className="btn-primary text-sm"
           >
             {isLastRound ? 'Finish Game' : 'Next Round'}
             <ArrowRight className="ml-2 h-4 w-4" />
@@ -170,7 +175,7 @@ const GameRound: React.FC = () => {
         </CardFooter>
       </Card>
       
-      <div className="text-center text-sm text-muted-foreground">
+      <div className="text-center text-sm text-muted-foreground mb-8">
         {!allPlayersGuessed 
           ? 'Waiting for all players to make their selections...'
           : game.mode === 'beginner' && !showResults

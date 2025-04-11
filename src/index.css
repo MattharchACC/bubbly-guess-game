@@ -60,6 +60,19 @@
   .glass-panel {
     @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-sm;
   }
+
+  /* iOS specific styles */
+  .ios-button {
+    @apply rounded-full text-sm font-medium py-2.5 px-5 transition-all;
+  }
+  
+  .ios-card {
+    @apply rounded-2xl border border-gray-200 shadow-sm bg-white overflow-hidden;
+  }
+  
+  .ios-input {
+    @apply rounded-xl border border-gray-300 bg-white/90 shadow-sm;
+  }
 }
 
 @layer components {
@@ -103,3 +116,4 @@
     @apply hover:bg-accent hover:text-accent-foreground rounded-full px-4 py-2 transition-colors;
   }
 }
+
