@@ -30,3 +30,10 @@ export interface Game {
   currentRound: number;
   isComplete: boolean;
 }
+
+// New interface for tracking drink assignments during setup
+export interface DrinkAssignment {
+  roundId: string;
+  roundName: string;
+  drinkId: string;
+}

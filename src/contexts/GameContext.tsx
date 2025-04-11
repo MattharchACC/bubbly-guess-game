@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 type GameContextType = {
   game: Game | null;
-  setUpGame: (name: string, mode: GameMode, drinks: Drink[], roundCount: number) => void;
+  setUpGame: (name: string, mode: GameMode, drinks: Drink[], roundCount: number, preassignedRounds?: Round[]) => void;
   addPlayer: (name: string) => void;
   startGame: () => void;
   submitGuess: (playerId: string, roundId: string, drinkId: string) => void;
@@ -21,7 +21,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [game, setGame] = useState<Game | null>(null);
   const { toast } = useToast();
 
-  const setUpGame = (name: string, mode: GameMode, drinks: Drink[], roundCount: number) => {
+  const setUpGame = (name: string, mode: GameMode, drinks: Drink[], roundCount: number, preassignedRounds?: Round[]) => {
     if (drinks.length < roundCount) {
       toast({
         title: "Not enough drinks",
@@ -31,15 +31,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Create rounds with random correct drinks
-    const shuffledDrinks = [...drinks].sort(() => Math.random() - 0.5);
-    const selectedDrinks = shuffledDrinks.slice(0, roundCount);
+    // Create rounds with assigned drinks or random if not provided
+    let rounds: Round[];
     
-    const rounds: Round[] = Array.from({ length: roundCount }, (_, index) => ({
-      id: uuidv4(),
-      name: `Round ${index + 1}`,
-      correctDrinkId: selectedDrinks[index].id,
-    }));
+    if (preassignedRounds && preassignedRounds.length === roundCount) {
+      // Use the preassigned rounds from the interface
+      rounds = preassignedRounds;
+    } else {
+      // Create rounds with random correct drinks (original behavior)
+      const shuffledDrinks = [...drinks].sort(() => Math.random() - 0.5);
+      const selectedDrinks = shuffledDrinks.slice(0, roundCount);
+      
+      rounds = Array.from({ length: roundCount }, (_, index) => ({
+        id: uuidv4(),
+        name: `Round ${index + 1}`,
+        correctDrinkId: selectedDrinks[index].id,
+      }));
+    }
 
     setGame({
       id: uuidv4(),

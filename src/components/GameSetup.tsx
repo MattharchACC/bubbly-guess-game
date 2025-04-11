@@ -1,14 +1,16 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Drink, GameMode } from '@/types/game';
-import { Plus, Trash2, Wine } from 'lucide-react';
+import { Drink, GameMode, DrinkAssignment } from '@/types/game';
+import { Plus, Trash2, Wine, ArrowDown, ArrowUp } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const GameSetup: React.FC = () => {
   const { setUpGame } = useGame();
@@ -26,6 +28,31 @@ const GameSetup: React.FC = () => {
   ]);
   const [newDrinkName, setNewDrinkName] = useState<string>('');
   const [newDrinkDescription, setNewDrinkDescription] = useState<string>('');
+  const [drinkAssignments, setDrinkAssignments] = useState<DrinkAssignment[]>([]);
+  const [roundNames, setRoundNames] = useState<Record<string, string>>({});
+  const [currentTab, setCurrentTab] = useState('drinks');
+
+  // Generate round IDs and names when roundCount changes
+  useEffect(() => {
+    const generatedRoundNames: Record<string, string> = {};
+    const newAssignments: DrinkAssignment[] = [];
+    
+    for (let i = 0; i < roundCount; i++) {
+      const roundId = uuidv4();
+      const roundName = `Round ${i + 1}`;
+      generatedRoundNames[roundId] = roundName;
+      
+      // Initialize with no drink selected
+      newAssignments.push({
+        roundId,
+        roundName,
+        drinkId: '',
+      });
+    }
+    
+    setRoundNames(generatedRoundNames);
+    setDrinkAssignments(newAssignments);
+  }, [roundCount]);
 
   const addDrink = () => {
     if (newDrinkName.trim() === '') return;
@@ -43,11 +70,80 @@ const GameSetup: React.FC = () => {
 
   const removeDrink = (id: string) => {
     setDrinks(drinks.filter(drink => drink.id !== id));
+    
+    // Also remove this drink from any assignments
+    setDrinkAssignments(drinkAssignments.map(assignment => 
+      assignment.drinkId === id ? {...assignment, drinkId: ''} : assignment
+    ));
+  };
+
+  const handleDrinkAssignment = (roundId: string, drinkId: string) => {
+    setDrinkAssignments(drinkAssignments.map(assignment => 
+      assignment.roundId === roundId ? {...assignment, drinkId} : assignment
+    ));
+  };
+
+  const updateRoundName = (roundId: string, name: string) => {
+    setRoundNames(prev => ({...prev, [roundId]: name}));
+    
+    setDrinkAssignments(drinkAssignments.map(assignment => 
+      assignment.roundId === roundId ? {...assignment, roundName: name} : assignment
+    ));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setUpGame(gameName, gameMode, drinks, roundCount);
+    
+    // Check if all rounds have drinks assigned
+    const allAssigned = drinkAssignments.every(assignment => assignment.drinkId !== '');
+    
+    if (!allAssigned) {
+      alert('Please assign a drink to each round');
+      return;
+    }
+    
+    // Create rounds with assigned drinks
+    const rounds = drinkAssignments.map(assignment => ({
+      id: assignment.roundId,
+      name: assignment.roundName,
+      correctDrinkId: assignment.drinkId,
+    }));
+    
+    setUpGame(gameName, gameMode, drinks, roundCount, rounds);
+  };
+
+  // Move round up in the order (if not the first)
+  const moveRoundUp = (index: number) => {
+    if (index <= 0) return;
+    
+    const newAssignments = [...drinkAssignments];
+    const temp = newAssignments[index];
+    newAssignments[index] = newAssignments[index - 1];
+    newAssignments[index - 1] = temp;
+    
+    setDrinkAssignments(newAssignments);
+  };
+
+  // Move round down in the order (if not the last)
+  const moveRoundDown = (index: number) => {
+    if (index >= drinkAssignments.length - 1) return;
+    
+    const newAssignments = [...drinkAssignments];
+    const temp = newAssignments[index];
+    newAssignments[index] = newAssignments[index + 1];
+    newAssignments[index + 1] = temp;
+    
+    setDrinkAssignments(newAssignments);
+  };
+
+  // Check if we can create the game
+  const canCreateGame = () => {
+    return (
+      drinks.length >= roundCount && 
+      drinks.length > 0 && 
+      roundCount > 0 && 
+      drinkAssignments.every(assignment => assignment.drinkId !== '')
+    );
   };
 
   return (
@@ -55,7 +151,7 @@ const GameSetup: React.FC = () => {
       <Card className="mt-8">
         <CardHeader>
           <CardTitle className="heading-lg">Set Up Your Tasting Game</CardTitle>
-          <CardDescription>Configure your game settings and add drinks</CardDescription>
+          <CardDescription>Configure your game settings and assign drinks to rounds</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -103,65 +199,151 @@ const GameSetup: React.FC = () => {
               />
             </div>
 
-            <div className="space-y-3">
-              <Label>Drinks</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {drinks.map(drink => (
-                  <div key={drink.id} className="flex items-center justify-between p-3 border rounded-xl">
-                    <div>
-                      <p className="font-medium">{drink.name}</p>
-                      {drink.description && <p className="text-sm text-muted-foreground">{drink.description}</p>}
+            <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full mt-6">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="drinks">Drinks</TabsTrigger>
+                <TabsTrigger value="rounds">Round Assignment</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="drinks" className="mt-4 space-y-4">
+                <div className="space-y-3">
+                  <Label>Available Drinks</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {drinks.map(drink => (
+                      <div key={drink.id} className="flex items-center justify-between p-3 border rounded-xl">
+                        <div>
+                          <p className="font-medium">{drink.name}</p>
+                          {drink.description && <p className="text-sm text-muted-foreground">{drink.description}</p>}
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => removeDrink(drink.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3 p-4 border rounded-xl bg-muted/30">
+                  <Label>Add New Drink</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Wine className="h-5 w-5 text-muted-foreground" />
+                      <Input
+                        placeholder="Drink name"
+                        value={newDrinkName}
+                        onChange={(e) => setNewDrinkName(e.target.value)}
+                        className="rounded-xl"
+                      />
                     </div>
+                    <Input
+                      placeholder="Description (optional)"
+                      value={newDrinkDescription}
+                      onChange={(e) => setNewDrinkDescription(e.target.value)}
+                      className="rounded-xl"
+                    />
                     <Button 
                       type="button" 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => removeDrink(drink.id)}
-                      className="text-muted-foreground hover:text-destructive"
+                      onClick={addDrink} 
+                      variant="outline" 
+                      className="w-full"
+                      disabled={newDrinkName.trim() === ''}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Plus className="h-4 w-4 mr-2" /> Add Drink
                     </Button>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3 p-4 border rounded-xl bg-muted/30">
-              <Label>Add New Drink</Label>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Wine className="h-5 w-5 text-muted-foreground" />
-                  <Input
-                    placeholder="Drink name"
-                    value={newDrinkName}
-                    onChange={(e) => setNewDrinkName(e.target.value)}
-                    className="rounded-xl"
-                  />
                 </div>
-                <Input
-                  placeholder="Description (optional)"
-                  value={newDrinkDescription}
-                  onChange={(e) => setNewDrinkDescription(e.target.value)}
-                  className="rounded-xl"
-                />
-                <Button 
-                  type="button" 
-                  onClick={addDrink} 
-                  variant="outline" 
-                  className="w-full"
-                  disabled={newDrinkName.trim() === ''}
-                >
-                  <Plus className="h-4 w-4 mr-2" /> Add Drink
-                </Button>
-              </div>
-            </div>
+              </TabsContent>
+              
+              <TabsContent value="rounds" className="mt-4 space-y-5">
+                <div className="space-y-3">
+                  <Label>Assign Drinks to Rounds</Label>
+                  <p className="text-sm text-muted-foreground">Select which drink will be served in each round</p>
+                  
+                  {drinkAssignments.map((assignment, index) => (
+                    <div key={assignment.roundId} className="p-4 border rounded-xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <span className="bg-primary text-white w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium">
+                            {index + 1}
+                          </span>
+                          <Input
+                            value={roundNames[assignment.roundId] || `Round ${index + 1}`}
+                            onChange={(e) => updateRoundName(assignment.roundId, e.target.value)}
+                            className="font-medium rounded-xl max-w-[200px]"
+                          />
+                        </div>
+                        <div className="flex space-x-1">
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => moveRoundUp(index)}
+                            disabled={index === 0}
+                            className="h-8 w-8"
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => moveRoundDown(index)}
+                            disabled={index === drinkAssignments.length - 1}
+                            className="h-8 w-8"
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <Select
+                        value={assignment.drinkId}
+                        onValueChange={(value) => handleDrinkAssignment(assignment.roundId, value)}
+                      >
+                        <SelectTrigger className="w-full rounded-xl">
+                          <SelectValue placeholder="Select a drink for this round" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {drinks.map(drink => (
+                            <SelectItem key={drink.id} value={drink.id}>
+                              {drink.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      {assignment.drinkId && (
+                        <div className="text-sm p-2 bg-primary/10 rounded-lg">
+                          {drinks.find(d => d.id === assignment.drinkId)?.description}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
           </form>
         </CardContent>
-        <CardFooter className="flex justify-end space-x-2">
+        <CardFooter className="flex justify-between space-x-2">
+          <Button 
+            type="button"
+            variant="outline"
+            onClick={() => setCurrentTab(currentTab === 'drinks' ? 'rounds' : 'drinks')}
+            className="btn-secondary"
+          >
+            {currentTab === 'drinks' ? 'Next: Assign Rounds' : 'Back to Drinks'}
+          </Button>
+          
           <Button 
             type="submit"
             onClick={handleSubmit}
-            disabled={drinks.length < roundCount || drinks.length === 0 || roundCount <= 0}
+            disabled={!canCreateGame()}
             className="btn-primary"
           >
             Create Game
