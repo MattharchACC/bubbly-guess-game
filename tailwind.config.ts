@@ -19,6 +19,10 @@ export default {
 			}
 		},
 		extend: {
+			scale: {
+				'115': '1.15',
+				'125': '1.25',
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',

@@ -1,14 +1,22 @@
 
 import React from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface PhoneFrameProps {
   children: React.ReactNode;
 }
 
 const PhoneFrame: React.FC<PhoneFrameProps> = ({ children }) => {
+  const isMobile = useIsMobile();
+  
+  // On mobile devices, render without the frame for a full-screen experience
+  if (isMobile) {
+    return <div className="w-full h-full overflow-hidden">{children}</div>;
+  }
+  
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 flex items-center justify-center py-6 px-2">
-      <div className="relative mx-auto border-black rounded-[3rem] h-[712px] w-[350px] shadow-xl overflow-hidden bg-black">
+    <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 flex items-center justify-center py-6 px-2 transform-gpu">
+      <div className="relative mx-auto border-black rounded-[3rem] h-[712px] w-[350px] shadow-xl overflow-hidden bg-black transform-gpu scale-100 sm:scale-100 md:scale-105 lg:scale-110 xl:scale-115">
         {/* iPhone notch */}
         <div className="absolute top-0 inset-x-0 h-6 bg-black z-30">
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-20 h-[0.85rem] bg-black rounded-b-xl"></div>
