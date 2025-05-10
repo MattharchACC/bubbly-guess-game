@@ -1,11 +1,19 @@
 
 import React from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface PhoneFrameProps {
   children: React.ReactNode;
 }
 
 const PhoneFrame: React.FC<PhoneFrameProps> = ({ children }) => {
+  const isMobile = useIsMobile();
+  
+  // Only use the phone frame on mobile devices
+  if (!isMobile) {
+    return <>{children}</>;
+  }
+  
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 flex items-center justify-center py-6 px-2">
       <div className="relative mx-auto border-black rounded-[3rem] h-[712px] w-[350px] shadow-xl overflow-hidden bg-black">
