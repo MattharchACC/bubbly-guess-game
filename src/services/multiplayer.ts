@@ -141,10 +141,16 @@ class Multiplayer {
   // Broadcast an event to all connected clients
   emit(event: SyncEvent, data: any): void {
     // Broadcast via Supabase Realtime
-    supabase.channel('game-events').send({
-      type: 'broadcast',
-      event: 'game-event',
-      payload: { event, data }
+    const channel = supabase.channel('game-events');
+    
+    channel.subscribe().then(() => {
+      channel.send({
+        type: 'broadcast',
+        event: 'game-event',
+        payload: { event, data }
+      });
+    }).catch(error => {
+      console.error('Error broadcasting event:', error);
     });
     
     // Also notify local listeners
