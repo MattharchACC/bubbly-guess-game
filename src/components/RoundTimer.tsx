@@ -20,7 +20,7 @@ const RoundTimer: React.FC = () => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
   
-  // Determine color based on remaining time
+  // Determine color class based on remaining time
   const getColorClass = (): string => {
     if (remainingTime > timeLimit * 0.66) return 'bg-green-500';
     if (remainingTime > timeLimit * 0.33) return 'bg-amber-500';
