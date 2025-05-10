@@ -1,8 +1,9 @@
 
-import React, { createContext, useContext, useState } from 'react';
-import { Game, GameMode, Player, Round, Drink } from '../types/game';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Game, GameMode, Player, Round, Drink, SyncEvent } from '../types/game';
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from 'uuid';
+import { multiplayer, generateSessionCode, getDeviceId, storeGameSession, getStoredGameSession } from '../services/multiplayer';
 
 type GameContextType = {
   game: Game | null;
@@ -13,13 +14,140 @@ type GameContextType = {
   advanceRound: () => void;
   completeGame: () => void;
   resetGame: () => void;
+  joinGame: (sessionCode: string, playerName: string) => Promise<{ success: boolean, error?: string }>;
+  isHost: boolean;
+  currentPlayer: Player | null;
+  shareableLink: string;
+  remainingTime: number | null;
 };
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [game, setGame] = useState<Game | null>(null);
+  const [isHost, setIsHost] = useState<boolean>(false);
+  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
+  const [remainingTime, setRemainingTime] = useState<number | null>(null);
   const { toast } = useToast();
+  
+  // Initialize from localStorage if available
+  useEffect(() => {
+    const storedGame = getStoredGameSession();
+    if (storedGame) {
+      setGame(storedGame);
+      const deviceId = getDeviceId();
+      setIsHost(storedGame.hostId === deviceId);
+      
+      // Find current player
+      const player = storedGame.players.find(p => p.deviceId === deviceId);
+      setCurrentPlayer(player || null);
+    }
+  }, []);
+  
+  // Set up timer for rounds
+  useEffect(() => {
+    if (!game || game.currentRound < 0 || game.isComplete) {
+      setRemainingTime(null);
+      return;
+    }
+    
+    const currentRound = game.rounds[game.currentRound];
+    const roundTimeLimit = currentRound.timeLimit || game.roundTimeLimit || 60;
+    const startTime = currentRound.startTime || Date.now();
+    const endTime = startTime + (roundTimeLimit * 1000);
+    
+    const intervalId = setInterval(() => {
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
+      setRemainingTime(remaining);
+      
+      if (remaining <= 0 && isHost) {
+        // Host is responsible for advancing rounds
+        clearInterval(intervalId);
+        if (game.currentRound < game.rounds.length - 1) {
+          advanceRound();
+        } else {
+          completeGame();
+        }
+      }
+    }, 1000);
+    
+    return () => clearInterval(intervalId);
+  }, [game?.currentRound, game?.isComplete]);
+  
+  // Listen for sync events
+  useEffect(() => {
+    const handlePlayerJoined = (data: any) => {
+      if (!game || !isHost) return;
+      
+      // Only the host should handle adding players
+      if (data.sessionCode === game.sessionCode && data.playerName) {
+        const newPlayer: Player = {
+          id: uuidv4(),
+          name: data.playerName,
+          guesses: {},
+          deviceId: data.deviceId,
+          isConnected: true
+        };
+        
+        const updatedGame = {
+          ...game,
+          players: [...game.players, newPlayer]
+        };
+        
+        setGame(updatedGame);
+        storeGameSession(updatedGame);
+        
+        // Notify all players about the updated game
+        multiplayer.emit(SyncEvent.PLAYER_JOINED, {
+          sessionCode: game.sessionCode,
+          game: updatedGame
+        });
+        
+        toast({
+          title: "Player joined",
+          description: `${data.playerName} has joined the game`,
+        });
+      }
+    };
+    
+    const handleVoteSubmitted = (data: any) => {
+      if (!game) return;
+      
+      if (data.gameId === game.id) {
+        const updatedGame = {
+          ...game,
+          players: game.players.map(player => 
+            player.id === data.playerId
+              ? {
+                  ...player,
+                  guesses: {
+                    ...player.guesses,
+                    [data.roundId]: data.drinkId,
+                  },
+                }
+              : player
+          ),
+        };
+        
+        setGame(updatedGame);
+        storeGameSession(updatedGame);
+      }
+    };
+    
+    multiplayer.addEventListener(SyncEvent.PLAYER_JOINED, handlePlayerJoined);
+    multiplayer.addEventListener(SyncEvent.VOTE_SUBMITTED, handleVoteSubmitted);
+    
+    return () => {
+      multiplayer.removeEventListener(SyncEvent.PLAYER_JOINED, handlePlayerJoined);
+      multiplayer.removeEventListener(SyncEvent.VOTE_SUBMITTED, handleVoteSubmitted);
+    };
+  }, [game, isHost]);
+  
+  // Generate a shareable link for joining the game
+  const shareableLink = game?.sessionCode 
+    ? `${window.location.origin}?join=${game.sessionCode}` 
+    : '';
 
   const setUpGame = (name: string, mode: GameMode, drinks: Drink[], roundCount: number, preassignedRounds?: Round[]) => {
     if (drinks.length < roundCount) {
@@ -46,24 +174,90 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: uuidv4(),
         name: `Round ${index + 1}`,
         correctDrinkId: selectedDrinks[index].id,
+        timeLimit: 60 // Default time limit in seconds
       }));
     }
 
-    setGame({
+    const deviceId = getDeviceId();
+    const hostPlayer: Player = {
+      id: uuidv4(),
+      name: 'Host',
+      guesses: {},
+      isHost: true,
+      deviceId,
+      isConnected: true
+    };
+
+    const newGame: Game = {
       id: uuidv4(),
       name,
       mode,
       rounds,
-      players: [],
+      players: [hostPlayer],
       drinks,
       currentRound: -1, // -1 means game not started yet
       isComplete: false,
-    });
+      hostId: deviceId,
+      roundTimeLimit: 60, // Default 60 seconds per round
+    };
+    
+    // Create multiplayer session
+    const gameWithSession = multiplayer.createGameSession(newGame);
+    
+    setGame(gameWithSession);
+    setIsHost(true);
+    setCurrentPlayer(hostPlayer);
 
     toast({
       title: "Game created",
       description: `${name} has been set up with ${roundCount} rounds`,
     });
+  };
+
+  const joinGame = async (sessionCode: string, playerName: string): Promise<{ success: boolean, error?: string }> => {
+    try {
+      const result = await multiplayer.joinGameSession(sessionCode, playerName);
+      
+      if (result.success && result.game) {
+        setGame(result.game);
+        setIsHost(false);
+        
+        // Find or create current player
+        const deviceId = getDeviceId();
+        let player = result.game.players.find(p => p.deviceId === deviceId);
+        
+        if (!player) {
+          // This shouldn't normally happen as the host should have added the player
+          // but just in case, we'll add the player locally
+          player = {
+            id: uuidv4(),
+            name: playerName,
+            guesses: {},
+            deviceId,
+            isConnected: true
+          };
+        }
+        
+        setCurrentPlayer(player);
+        
+        toast({
+          title: "Joined game",
+          description: `You've joined ${result.game.name}`,
+        });
+        
+        return { success: true };
+      }
+      
+      return { 
+        success: false, 
+        error: result.error || "Could not join game" 
+      };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: "An error occurred while joining the game" 
+      };
+    }
   };
 
   const addPlayer = (name: string) => {
@@ -73,12 +267,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: uuidv4(),
       name,
       guesses: {},
+      deviceId: getDeviceId(),
+      isConnected: true
     };
 
-    setGame({
+    const updatedGame = {
       ...game,
       players: [...game.players, newPlayer],
-    });
+    };
+    
+    setGame(updatedGame);
+    storeGameSession(updatedGame);
+    
+    if (getDeviceId() === newPlayer.deviceId) {
+      setCurrentPlayer(newPlayer);
+    }
 
     toast({
       title: "Player added",
@@ -97,10 +300,27 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return;
     }
-
-    setGame({
+    
+    const updatedRounds = game.rounds.map((round, index) => 
+      index === 0
+        ? { ...round, startTime: Date.now() }
+        : round
+    );
+    
+    const updatedGame = {
       ...game,
       currentRound: 0,
+      rounds: updatedRounds
+    };
+    
+    setGame(updatedGame);
+    storeGameSession(updatedGame);
+    
+    // Broadcast game start
+    multiplayer.emit(SyncEvent.ROUND_STARTED, {
+      gameId: game.id,
+      roundId: updatedRounds[0].id,
+      timestamp: Date.now()
     });
 
     toast({
@@ -111,6 +331,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const submitGuess = (playerId: string, roundId: string, drinkId: string) => {
     if (!game) return;
+    
+    multiplayer.submitVote(game.id, playerId, roundId, drinkId);
     
     setGame({
       ...game,
@@ -131,13 +353,36 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const advanceRound = () => {
     if (!game || game.currentRound >= game.rounds.length - 1) return;
     
-    setGame({
+    const nextRoundIndex = game.currentRound + 1;
+    const updatedRounds = game.rounds.map((round, index) => {
+      if (index === game.currentRound) {
+        return { ...round, endTime: Date.now() };
+      }
+      if (index === nextRoundIndex) {
+        return { ...round, startTime: Date.now() };
+      }
+      return round;
+    });
+    
+    const updatedGame = {
       ...game,
-      currentRound: game.currentRound + 1,
+      currentRound: nextRoundIndex,
+      rounds: updatedRounds
+    };
+    
+    setGame(updatedGame);
+    storeGameSession(updatedGame);
+    
+    // Broadcast round change
+    multiplayer.emit(SyncEvent.ROUND_STARTED, {
+      gameId: game.id,
+      roundId: updatedRounds[nextRoundIndex].id,
+      roundIndex: nextRoundIndex,
+      timestamp: Date.now()
     });
 
     toast({
-      title: `Round ${game.currentRound + 2}`,
+      title: `Round ${nextRoundIndex + 1}`,
       description: "Next round has begun!",
     });
   };
@@ -145,9 +390,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const completeGame = () => {
     if (!game) return;
     
-    setGame({
+    const updatedGame = {
       ...game,
       isComplete: true,
+    };
+    
+    setGame(updatedGame);
+    storeGameSession(updatedGame);
+    
+    // Broadcast game completion
+    multiplayer.emit(SyncEvent.GAME_COMPLETED, {
+      gameId: game.id,
+      timestamp: Date.now()
     });
 
     toast({
@@ -158,6 +412,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetGame = () => {
     setGame(null);
+    setIsHost(false);
+    setCurrentPlayer(null);
+    storeGameSession(null);
     
     toast({
       title: "Game reset",
@@ -175,6 +432,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       advanceRound,
       completeGame,
       resetGame,
+      joinGame,
+      isHost,
+      currentPlayer,
+      shareableLink,
+      remainingTime,
     }}>
       {children}
     </GameContext.Provider>
