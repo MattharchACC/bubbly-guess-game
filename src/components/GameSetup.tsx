@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -6,17 +5,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Drink, GameMode, DrinkAssignment } from '@/types/game';
-import { Plus, Trash2, Wine, ArrowDown, ArrowUp } from 'lucide-react';
+import { Plus, Trash2, Wine, ArrowDown, ArrowUp, Clock } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Slider } from '@/components/ui/slider';
 
 const GameSetup: React.FC = () => {
   const { setUpGame } = useGame();
   const [gameName, setGameName] = useState<string>('Prosecco Tasting Challenge');
   const [gameMode, setGameMode] = useState<GameMode>('beginner');
   const [roundCount, setRoundCount] = useState<number>(6);
+  const [roundTimeLimit, setRoundTimeLimit] = useState<number>(60); // Default 60 seconds
   const [drinks, setDrinks] = useState<Drink[]>([
     // Default Prosecco examples
     { id: uuidv4(), name: 'La Marca Prosecco', description: 'Fresh and clean' },
@@ -107,6 +108,7 @@ const GameSetup: React.FC = () => {
       id: assignment.roundId,
       name: assignment.roundName,
       correctDrinkId: assignment.drinkId,
+      timeLimit: roundTimeLimit, // Use the global round time limit
     }));
     
     setUpGame(gameName, gameMode, drinks, roundCount, rounds);
@@ -144,6 +146,13 @@ const GameSetup: React.FC = () => {
       roundCount > 0 && 
       drinkAssignments.every(assignment => assignment.drinkId !== '')
     );
+  };
+
+  // Format time in minutes and seconds
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
   return (
@@ -197,6 +206,35 @@ const GameSetup: React.FC = () => {
                 required
                 className="rounded-xl"
               />
+            </div>
+
+            {/* Add round timer settings */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="roundTimeLimit" className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Round Time Limit: {formatTime(roundTimeLimit)}
+                </Label>
+                <span className="text-sm text-muted-foreground">{roundTimeLimit} seconds</span>
+              </div>
+              <div className="px-2">
+                <Slider
+                  id="roundTimeLimit" 
+                  defaultValue={[roundTimeLimit]}
+                  min={10}
+                  max={300}
+                  step={5}
+                  onValueChange={(value) => setRoundTimeLimit(value[0])}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>10s</span>
+                <span>1m</span>
+                <span>2m</span>
+                <span>3m</span>
+                <span>5m</span>
+              </div>
             </div>
 
             <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full mt-6">

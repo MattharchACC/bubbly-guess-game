@@ -181,6 +181,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }));
     }
 
+    // Extract round time limit from the first round (all rounds should have the same time limit)
+    const roundTimeLimit = preassignedRounds && preassignedRounds.length > 0 
+      ? preassignedRounds[0].timeLimit || 60 
+      : 60;
+
     const deviceId = getDeviceId();
     const hostPlayer: Player = {
       id: uuidv4(),
@@ -201,7 +206,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       currentRound: -1, // -1 means game not started yet
       isComplete: false,
       hostId: deviceId,
-      roundTimeLimit: 60, // Default 60 seconds per round
+      roundTimeLimit, // Use the time limit from rounds
       sessionCode, // Add session code from the beginning
     };
     
@@ -317,10 +322,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     
-    const updatedRounds = game.rounds.map((round, index) => 
-      index === 0
-        ? { ...round, startTime: Date.now() }
-        : round
+    const updatedRounds = game.rounds.map((round, index) 
+      ? { ...round, startTime: Date.now() }
+      : round
     );
     
     const updatedGame = {

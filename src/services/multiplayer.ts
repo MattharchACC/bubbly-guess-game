@@ -128,8 +128,9 @@ class Multiplayer {
           correct_drink_id: round.correctDrinkId,
           time_limit: round.timeLimit,
           round_order: i,
-          start_time: round.startTime,
-          end_time: round.endTime
+          // Convert JS timestamp to ISO string for Postgres
+          start_time: round.startTime ? new Date(round.startTime).toISOString() : null,
+          end_time: round.endTime ? new Date(round.endTime).toISOString() : null
         };
 
         await supabase
@@ -188,8 +189,8 @@ class Multiplayer {
           name: r.name,
           correctDrinkId: r.correct_drink_id,
           timeLimit: r.time_limit,
-          startTime: r.start_time,
-          endTime: r.end_time
+          startTime: r.start_time ? new Date(r.start_time).getTime() : undefined,
+          endTime: r.end_time ? new Date(r.end_time).getTime() : undefined
         })),
         drinks: [] // We'll need to fetch drinks separately
       };
@@ -275,7 +276,7 @@ class Multiplayer {
 
   // Submit a vote/guess
   submitVote(gameId: string, playerId: string, roundId: string, drinkId: string): void {
-    // Submit to Supabase - Fix the Promise handling
+    // Submit to Supabase
     supabase
       .from('guesses')
       .upsert({
@@ -289,7 +290,7 @@ class Multiplayer {
           return;
         }
         
-        // Broadcast the vote
+        // Only broadcast the vote if successful
         this.emit(SyncEvent.VOTE_SUBMITTED, {
           gameId,
           playerId,
