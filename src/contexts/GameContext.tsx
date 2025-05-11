@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Game, GameMode, Player, Round, Drink, SyncEvent } from '../types/game';
 import { useToast } from "@/hooks/use-toast";
@@ -322,12 +323,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     
-    const updatedRounds = game.rounds.map((round, index) 
-      ? { ...round, startTime: Date.now() }
-      : round
-    );
+    // Fix the code here to properly update rounds
+    const updatedRounds = game.rounds.map((round, index) => {
+      // First round gets start time, others remain as is
+      return index === 0 
+        ? { ...round, startTime: Date.now() }
+        : round;
+    });
     
-    const updatedGame = {
+    const updatedGame: Game = {
       ...game,
       currentRound: 0,
       rounds: updatedRounds
