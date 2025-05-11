@@ -132,7 +132,7 @@ class Multiplayer {
     this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
   }
 
-  // Emit event to all listeners
+  // Notify listeners of an event
   notifyListeners(event: string, data: any): void {
     if (!this.listeners[event]) return;
     this.listeners[event].forEach(callback => callback(data));
@@ -163,7 +163,7 @@ class Multiplayer {
 
   // Submit a vote/guess
   submitVote(gameId: string, playerId: string, roundId: string, drinkId: string): void {
-    // Submit to Supabase
+    // Submit to Supabase - Fix the Promise handling
     supabase
       .from('guesses')
       .upsert({
@@ -171,7 +171,12 @@ class Multiplayer {
         round_id: roundId,
         drink_id: drinkId,
       })
-      .then(() => {
+      .then(({ error }) => {
+        if (error) {
+          console.error('Error submitting vote:', error);
+          return;
+        }
+        
         // Broadcast the vote
         this.emit(SyncEvent.VOTE_SUBMITTED, {
           gameId,
@@ -180,9 +185,6 @@ class Multiplayer {
           drinkId,
           timestamp: Date.now()
         });
-      })
-      .catch(error => {
-        console.error('Error submitting vote:', error);
       });
   }
 }
