@@ -14,6 +14,7 @@ type GameContextType = {
   advanceRound: () => void;
   completeGame: () => void;
   resetGame: () => void;
+  endGame: () => void; // Add new endGame function
   joinGame: (sessionCode: string, playerName: string) => Promise<{ success: boolean, error?: string }>;
   isHost: boolean;
   currentPlayer: Player | null;
@@ -433,6 +434,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const endGame = () => {
+    if (!game || !isHost) return;
+    
+    const updatedGame = {
+      ...game,
+      isComplete: true,
+    };
+    
+    setGame(updatedGame);
+    storeGameSession(updatedGame);
+    
+    // Broadcast game ending
+    multiplayer.emit(SyncEvent.GAME_COMPLETED, {
+      gameId: game.id,
+      timestamp: Date.now(),
+      endedEarly: true
+    });
+
+    toast({
+      title: "Game ended",
+      description: "The game has been ended by the host.",
+    });
+  };
+
   const resetGame = () => {
     setGame(null);
     setIsHost(false);
@@ -455,6 +480,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       advanceRound,
       completeGame,
       resetGame,
+      endGame, // Add new endGame function to context
       joinGame,
       isHost,
       currentPlayer,

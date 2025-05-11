@@ -1,15 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, ArrowRight, Wine, X, Share2, Users } from 'lucide-react';
+import { Check, ArrowRight, Wine, X, Share2, Users, StopCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import RoundTimer from '@/components/RoundTimer';
 
 const GameRound: React.FC = () => {
-  const { game, submitGuess, advanceRound, completeGame, isHost, currentPlayer, shareableLink } = useGame();
+  const { game, submitGuess, advanceRound, completeGame, endGame, isHost, currentPlayer, shareableLink } = useGame();
   const [selectedTab, setSelectedTab] = useState<string>('');
   const [isDrinkSelected, setIsDrinkSelected] = useState<Record<string, boolean>>({});
   const [showResults, setShowResults] = useState<boolean>(false);
@@ -141,16 +140,16 @@ const GameRound: React.FC = () => {
   return (
     <div className="container mx-auto max-w-3xl animate-fade-in px-3">
       <div className="flex justify-between items-center mb-4">
-        <h1 className="heading-lg">{game.name}</h1>
+        <h1 className="heading-lg">{game?.name}</h1>
         <div className="text-sm font-medium text-muted-foreground">
-          {game.mode === 'pro' ? 'Pro Mode' : 'Beginner Mode'}
+          {game?.mode === 'pro' ? 'Pro Mode' : 'Beginner Mode'}
         </div>
       </div>
       
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
           <Users className="h-5 w-5 text-muted-foreground" />
-          <span className="text-sm">{game.players.length} Players</span>
+          <span className="text-sm">{game?.players.length} Players</span>
         </div>
         
         {shareableLink && (
@@ -167,9 +166,9 @@ const GameRound: React.FC = () => {
       </div>
       
       <div className="bg-muted/30 p-4 rounded-2xl mb-4 text-center">
-        <h2 className="heading-md">{currentRound.name}</h2>
+        <h2 className="heading-md">{game && game.currentRound >= 0 ? game.rounds[game.currentRound].name : ''}</h2>
         <p className="text-muted-foreground">
-          Round {game.currentRound + 1} of {game.rounds.length}
+          Round {game && game.currentRound >= 0 ? game.currentRound + 1 : 0} of {game?.rounds.length}
         </p>
       </div>
       
@@ -229,7 +228,18 @@ const GameRound: React.FC = () => {
           </Tabs>
         </CardContent>
         <CardFooter className="flex justify-end gap-2 border-t p-4">
-          {allPlayersGuessed && game.mode === 'beginner' && !showResults && isHost && (
+          {isHost && (
+            <Button 
+              onClick={endGame} 
+              variant="destructive"
+              className="rounded-full text-sm mr-auto"
+            >
+              <StopCircle className="h-4 w-4 mr-1" />
+              End Game
+            </Button>
+          )}
+
+          {allPlayersGuessed && game?.mode === 'beginner' && !showResults && isHost && (
             <Button 
               onClick={handleRevealResults}
               variant="outline"
@@ -242,10 +252,10 @@ const GameRound: React.FC = () => {
           {isHost && (
             <Button 
               onClick={handleNext} 
-              disabled={!allPlayersGuessed || (game.mode === 'beginner' && !showResults)}
+              disabled={!allPlayersGuessed || (game?.mode === 'beginner' && !showResults)}
               className="btn-primary text-sm"
             >
-              {isLastRound ? 'Finish Game' : 'Next Round'}
+              {game && game.currentRound === game.rounds.length - 1 ? 'Finish Game' : 'Next Round'}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           )}
@@ -255,7 +265,7 @@ const GameRound: React.FC = () => {
       <div className="text-center text-sm text-muted-foreground mb-8">
         {!allPlayersGuessed 
           ? 'Waiting for all players to make their selections...'
-          : game.mode === 'beginner' && !showResults && isHost
+          : game?.mode === 'beginner' && !showResults && isHost
             ? 'All players have made their selections. Ready to reveal results!'
             : isHost 
               ? 'Ready to continue to the next round.'
