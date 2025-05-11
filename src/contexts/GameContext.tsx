@@ -1,9 +1,9 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Game, GameMode, Player, Round, Drink, SyncEvent } from '../types/game';
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from 'uuid';
 import { multiplayer, generateSessionCode, getDeviceId, storeGameSession, getStoredGameSession } from '../services/multiplayer';
+import { supabase } from '@/integrations/supabase/client';
 
 type GameContextType = {
   game: Game | null;
@@ -146,10 +146,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   
   // Generate a shareable link for joining the game
   const shareableLink = game?.sessionCode 
-    ? `${window.location.origin}?join=${game.sessionCode}` 
+    ? `${window.location.origin}/join?join=${game.sessionCode}` 
     : '';
 
-  const setUpGame = (name: string, mode: GameMode, drinks: Drink[], roundCount: number, preassignedRounds?: Round[]) => {
+  const setUpGame = async (name: string, mode: GameMode, drinks: Drink[], roundCount: number, preassignedRounds?: Round[]) => {
     if (drinks.length < roundCount) {
       toast({
         title: "Not enough drinks",
@@ -158,6 +158,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return;
     }
+
+    // Generate a session code
+    const sessionCode = await generateSessionCode();
 
     // Create rounds with assigned drinks or random if not provided
     let rounds: Round[];
@@ -199,14 +202,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isComplete: false,
       hostId: deviceId,
       roundTimeLimit: 60, // Default 60 seconds per round
+      sessionCode, // Add session code from the beginning
     };
     
-    // Create multiplayer session
+    // Create multiplayer session (which will now save to Supabase)
     const gameWithSession = multiplayer.createGameSession(newGame);
     
     setGame(gameWithSession);
     setIsHost(true);
     setCurrentPlayer(hostPlayer);
+    storeGameSession(gameWithSession);
 
     toast({
       title: "Game created",
@@ -236,9 +241,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             deviceId,
             isConnected: true
           };
+          
+          // Add player to the game object
+          const updatedGame = {
+            ...result.game,
+            players: [...result.game.players, player]
+          };
+          
+          setGame(updatedGame);
+          storeGameSession(updatedGame);
         }
         
         setCurrentPlayer(player);
+        storeGameSession(result.game);
         
         toast({
           title: "Joined game",
@@ -253,6 +268,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error: result.error || "Could not join game" 
       };
     } catch (error) {
+      console.error("Error joining game:", error);
       return { 
         success: false, 
         error: "An error occurred while joining the game" 

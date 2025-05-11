@@ -67,11 +67,80 @@ class Multiplayer {
 
   // Create a new game session
   createGameSession(game: Game): Game {
-    const sessionCode = game.sessionCode || `DEMO${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-    return {
-      ...game,
-      sessionCode,
-    };
+    if (!game.sessionCode) {
+      // Generate a temporary session code for UI display
+      const sessionCode = `DEMO${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      game.sessionCode = sessionCode;
+    }
+
+    // Save the game to Supabase
+    this.saveGameToSupabase(game);
+    
+    return game;
+  }
+
+  // Save game to Supabase database
+  private async saveGameToSupabase(game: Game) {
+    try {
+      // First, create or update the game record
+      const gameData = {
+        id: game.id,
+        name: game.name,
+        mode: game.mode,
+        host_id: game.hostId,
+        is_complete: game.isComplete,
+        current_round: game.currentRound,
+        session_code: game.sessionCode,
+        round_time_limit: game.roundTimeLimit
+      };
+
+      const { error: gameError } = await supabase
+        .from('games')
+        .upsert(gameData);
+
+      if (gameError) {
+        console.error('Error saving game:', gameError);
+        return;
+      }
+
+      // Save players
+      for (const player of game.players) {
+        const playerData = {
+          id: player.id,
+          name: player.name,
+          game_id: game.id,
+          is_host: player.isHost || false,
+          device_id: player.deviceId
+        };
+
+        await supabase
+          .from('players')
+          .upsert(playerData);
+      }
+
+      // Save rounds
+      for (let i = 0; i < game.rounds.length; i++) {
+        const round = game.rounds[i];
+        const roundData = {
+          id: round.id,
+          name: round.name,
+          game_id: game.id,
+          correct_drink_id: round.correctDrinkId,
+          time_limit: round.timeLimit,
+          round_order: i,
+          start_time: round.startTime,
+          end_time: round.endTime
+        };
+
+        await supabase
+          .from('game_rounds')
+          .upsert(roundData);
+      }
+
+      console.log('Game saved successfully to Supabase:', game.id);
+    } catch (error) {
+      console.error('Error in saveGameToSupabase:', error);
+    }
   }
 
   // Join an existing game session
@@ -89,6 +158,7 @@ class Multiplayer {
         .single();
 
       if (error || !data) {
+        console.error('Error fetching game:', error);
         return {
           success: false,
           error: "Game not found. Check the session code and try again."
@@ -96,7 +166,47 @@ class Multiplayer {
       }
 
       // Convert Supabase data to Game type
-      const game = data as unknown as Game;
+      const game: Game = {
+        id: data.id,
+        name: data.name,
+        mode: data.mode as any,
+        hostId: data.host_id,
+        currentRound: data.current_round,
+        isComplete: data.is_complete,
+        sessionCode: data.session_code,
+        roundTimeLimit: data.round_time_limit,
+        players: data.players.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          isHost: p.is_host,
+          deviceId: p.device_id,
+          guesses: {},
+          isConnected: true
+        })),
+        rounds: data.game_rounds.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          correctDrinkId: r.correct_drink_id,
+          timeLimit: r.time_limit,
+          startTime: r.start_time,
+          endTime: r.end_time
+        })),
+        drinks: [] // We'll need to fetch drinks separately
+      };
+      
+      // Fetch drinks for this game
+      const { data: drinksData } = await supabase
+        .from('drinks')
+        .select('*');
+        
+      if (drinksData) {
+        game.drinks = drinksData.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          description: d.description,
+          imageUrl: d.image_url
+        }));
+      }
       
       // Emit player joined event
       this.emit(SyncEvent.PLAYER_JOINED, {
@@ -143,15 +253,17 @@ class Multiplayer {
     // Broadcast via Supabase Realtime
     const channel = supabase.channel('game-events');
     
-    // Subscribe to the channel first
-    channel.subscribe();
-    
-    // Send the message after subscription (without using then/catch)
     try {
-      channel.send({
-        type: 'broadcast',
-        event: 'game-event',
-        payload: { event, data }
+      // Subscribe to the channel first
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          // Send the message after subscription
+          channel.send({
+            type: 'broadcast',
+            event: 'game-event',
+            payload: { event, data }
+          });
+        }
       });
     } catch (error) {
       console.error('Error broadcasting event:', error);
