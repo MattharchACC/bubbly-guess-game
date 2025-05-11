@@ -143,15 +143,19 @@ class Multiplayer {
     // Broadcast via Supabase Realtime
     const channel = supabase.channel('game-events');
     
-    channel.subscribe().then(() => {
+    // Subscribe to the channel first
+    channel.subscribe();
+    
+    // Send the message after subscription (without using then/catch)
+    try {
       channel.send({
         type: 'broadcast',
         event: 'game-event',
         payload: { event, data }
       });
-    }).catch(error => {
+    } catch (error) {
       console.error('Error broadcasting event:', error);
-    });
+    }
     
     // Also notify local listeners
     this.notifyListeners(event, data);
