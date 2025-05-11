@@ -14,7 +14,7 @@ type GameContextType = {
   advanceRound: () => void;
   completeGame: () => void;
   resetGame: () => void;
-  endGame: () => void; // Add new endGame function
+  endGame: () => void;
   joinGame: (sessionCode: string, playerName: string) => Promise<{ success: boolean, error?: string }>;
   isHost: boolean;
   currentPlayer: Player | null;
@@ -53,7 +53,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     const currentRound = game.rounds[game.currentRound];
-    const roundTimeLimit = currentRound.timeLimit || game.roundTimeLimit || 60;
+    const roundTimeLimit = currentRound.timeLimit || game.roundTimeLimit || 0;
+    
+    // If there's no time limit (timeLimit is 0), don't start the timer
+    if (roundTimeLimit <= 0) {
+      setRemainingTime(null);
+      return;
+    }
+    
     const startTime = currentRound.startTime || Date.now();
     const endTime = startTime + (roundTimeLimit * 1000);
     
@@ -480,7 +487,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       advanceRound,
       completeGame,
       resetGame,
-      endGame, // Add new endGame function to context
+      endGame,
       joinGame,
       isHost,
       currentPlayer,

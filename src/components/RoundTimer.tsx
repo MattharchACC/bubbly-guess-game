@@ -7,10 +7,26 @@ import { Clock } from 'lucide-react';
 const RoundTimer: React.FC = () => {
   const { game, remainingTime } = useGame();
   
-  if (!game || game.currentRound < 0 || !remainingTime) return null;
+  if (!game || game.currentRound < 0) return null;
   
   const currentRound = game.rounds[game.currentRound];
-  const timeLimit = currentRound.timeLimit || game.roundTimeLimit || 60;
+  const timeLimit = currentRound.timeLimit || game.roundTimeLimit || 0;
+  
+  // If there's no time limit (timeLimit is 0), don't render the timer
+  if (timeLimit <= 0) {
+    return (
+      <div className="rounded-lg bg-muted/30 p-3 mb-4">
+        <div className="flex items-center justify-center gap-2 text-sm font-medium">
+          <Clock className="h-4 w-4 text-muted-foreground" />
+          <span>No time limit for this round</span>
+        </div>
+      </div>
+    );
+  }
+  
+  // If there's a time limit but no remaining time (unusual case), return null
+  if (!remainingTime) return null;
+  
   const progress = Math.max(0, (remainingTime / timeLimit) * 100);
   
   // Format time as mm:ss
