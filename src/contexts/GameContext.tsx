@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Game, GameMode, Player, Round, Drink, SyncEvent } from '../types/game';
 import { useToast } from "@/hooks/use-toast";
@@ -145,7 +144,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [game, isHost]);
   
-  // Generate a shareable link for joining the game
+  // Generate a shareable link for joining the game - Updated to handle any domain
   const shareableLink = game?.sessionCode 
     ? `${window.location.origin}/join?join=${game.sessionCode}` 
     : '';

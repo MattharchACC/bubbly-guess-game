@@ -11,13 +11,19 @@ import Join from "./pages/Join";
 
 const queryClient = new QueryClient();
 
-// Component to handle join parameter in URL
+// Component to handle join parameter in URL with improved logging
 const JoinRedirect = () => {
   const location = useLocation();
+  
+  useEffect(() => {
+    console.log("Current location:", location.pathname, location.search);
+  }, [location]);
+  
   const params = new URLSearchParams(location.search);
   const joinCode = params.get('join');
   
   if (joinCode) {
+    console.log("Redirecting to join page with code:", joinCode);
     return <Navigate to={`/join?join=${joinCode}`} replace />;
   }
   

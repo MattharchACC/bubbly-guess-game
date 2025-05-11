@@ -16,13 +16,18 @@ const JoinGame: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Check URL for join code
+  // Check URL for join code with improved error handling
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const joinCode = params.get('join');
-    
-    if (joinCode) {
-      setSessionCode(joinCode);
+    try {
+      const params = new URLSearchParams(location.search);
+      const joinCode = params.get('join');
+      
+      if (joinCode) {
+        console.log("Join code detected:", joinCode);
+        setSessionCode(joinCode);
+      }
+    } catch (error) {
+      console.error("Error parsing URL parameters:", error);
     }
   }, [location]);
   
@@ -54,6 +59,7 @@ const JoinGame: React.FC = () => {
         navigate('/');
       }
     } catch (error) {
+      console.error("Join error:", error);
       toast({
         title: "Error",
         description: "An unexpected error occurred",
