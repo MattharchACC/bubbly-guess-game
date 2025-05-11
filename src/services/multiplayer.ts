@@ -60,9 +60,12 @@ class Multiplayer {
     const channel = supabase.channel('game-updates')
       .on('broadcast', { event: 'game-event' }, (payload) => {
         const { event, data } = payload.payload;
+        console.log(`Received event: ${event}`, data);
         this.notifyListeners(event, data);
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`Supabase channel status: ${status}`);
+      });
   }
 
   // Create a new game session
@@ -209,6 +212,29 @@ class Multiplayer {
         }));
       }
       
+      // Fetch existing guesses
+      const { data: guessesData } = await supabase
+        .from('guesses')
+        .select('player_id, round_id, drink_id')
+        .eq('round_id', game.rounds[game.currentRound]?.id);
+        
+      if (guessesData) {
+        // Update players with their existing guesses
+        game.players = game.players.map(player => {
+          const playerGuesses = guessesData
+            .filter((g: any) => g.player_id === player.id)
+            .reduce((acc: Record<string, string>, g: any) => {
+              acc[g.round_id] = g.drink_id;
+              return acc;
+            }, {});
+            
+          return {
+            ...player,
+            guesses: { ...player.guesses, ...playerGuesses }
+          };
+        });
+      }
+      
       // Emit player joined event
       this.emit(SyncEvent.PLAYER_JOINED, {
         sessionCode,
@@ -216,6 +242,7 @@ class Multiplayer {
         deviceId: getDeviceId()
       });
 
+      console.log("Joined game successfully:", game);
       return {
         success: true,
         game
@@ -246,11 +273,14 @@ class Multiplayer {
   // Notify listeners of an event
   notifyListeners(event: string, data: any): void {
     if (!this.listeners[event]) return;
+    console.log(`Notifying ${this.listeners[event].length} listeners for event ${event}`);
     this.listeners[event].forEach(callback => callback(data));
   }
 
   // Broadcast an event to all connected clients
   emit(event: SyncEvent, data: any): void {
+    console.log(`Emitting event: ${event}`, data);
+    
     // Broadcast via Supabase Realtime
     const channel = supabase.channel('game-events');
     

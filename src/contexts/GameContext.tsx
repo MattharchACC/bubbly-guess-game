@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Game, GameMode, Player, Round, Drink, SyncEvent } from '../types/game';
 import { useToast } from "@/hooks/use-toast";
@@ -86,10 +87,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Listen for sync events
   useEffect(() => {
     const handlePlayerJoined = (data: any) => {
-      if (!game || !isHost) return;
+      if (!game) return;
       
       // Only the host should handle adding players
-      if (data.sessionCode === game.sessionCode && data.playerName) {
+      if (isHost && data.sessionCode === game.sessionCode && data.playerName) {
         const newPlayer: Player = {
           id: uuidv4(),
           name: data.playerName,
@@ -116,39 +117,140 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           title: "Player joined",
           description: `${data.playerName} has joined the game`,
         });
+      } else if (!isHost && data.game) {
+        // Non-hosts should update their game state when players join
+        console.log("Receiving updated game state after player joined:", data.game);
+        setGame(data.game);
+        storeGameSession(data.game);
+        
+        // Update current player reference
+        const deviceId = getDeviceId();
+        const player = data.game.players.find((p: Player) => p.deviceId === deviceId);
+        if (player) {
+          setCurrentPlayer(player);
+        }
       }
     };
     
-    const handleVoteSubmitted = (data: any) => {
-      if (!game) return;
+    const handleGameStarted = (data: any) => {
+      console.log("Game started event received:", data);
+      if (!game || data.gameId !== game.id) return;
       
-      if (data.gameId === game.id) {
-        const updatedGame = {
-          ...game,
-          players: game.players.map(player => 
-            player.id === data.playerId
-              ? {
-                  ...player,
-                  guesses: {
-                    ...player.guesses,
-                    [data.roundId]: data.drinkId,
-                  },
-                }
-              : player
-          ),
-        };
-        
-        setGame(updatedGame);
-        storeGameSession(updatedGame);
+      // Update the game state for all players
+      const updatedRounds = game.rounds.map((round, index) => {
+        return index === 0 
+          ? { ...round, startTime: data.timestamp }
+          : round;
+      });
+      
+      const updatedGame: Game = {
+        ...game,
+        currentRound: 0,
+        rounds: updatedRounds
+      };
+      
+      console.log("Updating game state for non-host:", updatedGame);
+      setGame(updatedGame);
+      storeGameSession(updatedGame);
+      
+      toast({
+        title: "Game started",
+        description: "The first round has begun!",
+      });
+    };
+    
+    const handleVoteSubmitted = (data: any) => {
+      if (!game || data.gameId !== game.id) return;
+      
+      const updatedGame = {
+        ...game,
+        players: game.players.map(player => 
+          player.id === data.playerId
+            ? {
+                ...player,
+                guesses: {
+                  ...player.guesses,
+                  [data.roundId]: data.drinkId,
+                },
+              }
+            : player
+        ),
+      };
+      
+      setGame(updatedGame);
+      storeGameSession(updatedGame);
+    };
+    
+    const handleRoundStarted = (data: any) => {
+      console.log("Round started event received:", data);
+      if (!game || data.gameId !== game.id) return;
+      
+      // This handles both when the first round starts and subsequent rounds
+      const updatedRounds = game.rounds.map((round, index) => {
+        if (data.roundIndex === undefined) {
+          // This is the old format, handle first round scenario
+          if (round.id === data.roundId) {
+            return { ...round, startTime: data.timestamp };
+          }
+        } else {
+          // New format with roundIndex
+          if (index === data.roundIndex) {
+            return { ...round, startTime: data.timestamp };
+          } else if (index === data.roundIndex - 1) {
+            return { ...round, endTime: data.timestamp };
+          }
+        }
+        return round;
+      });
+      
+      const updatedGame = {
+        ...game,
+        currentRound: data.roundIndex !== undefined ? data.roundIndex : 0,
+        rounds: updatedRounds
+      };
+      
+      console.log("Updating game state for round start:", updatedGame);
+      setGame(updatedGame);
+      storeGameSession(updatedGame);
+    };
+    
+    const handleGameCompleted = (data: any) => {
+      console.log("Game completed event received:", data);
+      if (!game || data.gameId !== game.id) return;
+      
+      const updatedGame = {
+        ...game,
+        isComplete: true,
+      };
+      
+      setGame(updatedGame);
+      storeGameSession(updatedGame);
+      
+      if (data.endedEarly) {
+        toast({
+          title: "Game ended",
+          description: "The game has been ended by the host.",
+        });
+      } else {
+        toast({
+          title: "Game completed",
+          description: "Let's see the results!",
+        });
       }
     };
     
     multiplayer.addEventListener(SyncEvent.PLAYER_JOINED, handlePlayerJoined);
+    multiplayer.addEventListener(SyncEvent.GAME_STARTED, handleGameStarted);
     multiplayer.addEventListener(SyncEvent.VOTE_SUBMITTED, handleVoteSubmitted);
+    multiplayer.addEventListener(SyncEvent.ROUND_STARTED, handleRoundStarted);
+    multiplayer.addEventListener(SyncEvent.GAME_COMPLETED, handleGameCompleted);
     
     return () => {
       multiplayer.removeEventListener(SyncEvent.PLAYER_JOINED, handlePlayerJoined);
+      multiplayer.removeEventListener(SyncEvent.GAME_STARTED, handleGameStarted);
       multiplayer.removeEventListener(SyncEvent.VOTE_SUBMITTED, handleVoteSubmitted);
+      multiplayer.removeEventListener(SyncEvent.ROUND_STARTED, handleRoundStarted);
+      multiplayer.removeEventListener(SyncEvent.GAME_COMPLETED, handleGameCompleted);
     };
   }, [game, isHost]);
   
@@ -347,10 +449,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setGame(updatedGame);
     storeGameSession(updatedGame);
     
-    // Broadcast game start
+    // Broadcast game start with more detailed information
+    multiplayer.emit(SyncEvent.GAME_STARTED, {
+      gameId: game.id,
+      sessionCode: game.sessionCode,
+      timestamp: Date.now(),
+      game: updatedGame // Send the full updated game state
+    });
+    
+    // Also emit round started event to ensure consistent state
     multiplayer.emit(SyncEvent.ROUND_STARTED, {
       gameId: game.id,
       roundId: updatedRounds[0].id,
+      roundIndex: 0,
       timestamp: Date.now()
     });
 
@@ -404,12 +515,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setGame(updatedGame);
     storeGameSession(updatedGame);
     
-    // Broadcast round change
+    // Broadcast round change with full game data
     multiplayer.emit(SyncEvent.ROUND_STARTED, {
       gameId: game.id,
       roundId: updatedRounds[nextRoundIndex].id,
       roundIndex: nextRoundIndex,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      game: updatedGame // Send the full updated game state
     });
 
     toast({
@@ -429,10 +541,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setGame(updatedGame);
     storeGameSession(updatedGame);
     
-    // Broadcast game completion
+    // Broadcast game completion with full game data
     multiplayer.emit(SyncEvent.GAME_COMPLETED, {
       gameId: game.id,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      game: updatedGame // Send the full updated game state
     });
 
     toast({
@@ -452,11 +565,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setGame(updatedGame);
     storeGameSession(updatedGame);
     
-    // Broadcast game ending
+    // Broadcast game ending with full game data
     multiplayer.emit(SyncEvent.GAME_COMPLETED, {
       gameId: game.id,
       timestamp: Date.now(),
-      endedEarly: true
+      endedEarly: true,
+      game: updatedGame // Send the full updated game state
     });
 
     toast({

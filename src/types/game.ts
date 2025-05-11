@@ -62,6 +62,7 @@ export enum SyncEvent {
   JOIN_GAME = 'join_game',
   PLAYER_JOINED = 'player_joined',
   PLAYER_LEFT = 'player_left',
+  GAME_STARTED = 'game_started', // Added new event for game start
   ROUND_STARTED = 'round_started',
   VOTE_SUBMITTED = 'vote_submitted',
   ROUND_ENDED = 'round_ended',
