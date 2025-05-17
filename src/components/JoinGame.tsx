@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
@@ -70,8 +71,8 @@ const JoinGame: React.FC = () => {
         });
         setIsJoining(false); // Make sure to reset joining state on error
       } else {
-        // Always save the player ID to localStorage
-        localStorage.setItem(`player:${sessionCode.trim()}`, result.playerId);
+        // Always save – result.playerId is now guaranteed
+        localStorage.setItem(`player:${sessionCode.trim()}`, result.playerId!);
         console.log(`Saved player ID ${result.playerId} to localStorage for game ${sessionCode}`);
         
         toast({
@@ -79,8 +80,8 @@ const JoinGame: React.FC = () => {
           description: "Successfully joined the game session"
         });
         
-        // Keep the session code in the URL - critical fix
-        navigate(`/`);
+        // Go to the play route and leave the ?join= param out
+        navigate(`/play/${sessionCode.trim()}`);
       }
     } catch (error) {
       console.error("Join error:", error);

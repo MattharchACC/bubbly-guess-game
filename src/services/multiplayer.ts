@@ -327,8 +327,8 @@ class Multiplayer {
           };
         }
         
-        // Add to our game object
-        game.players.push({
+        // Add to our game object (and remember this one!)
+        const newPlayerObj = {
           id: playerId,
           name: playerName.trim(),
           isHost: false,
@@ -336,10 +336,9 @@ class Multiplayer {
           assignedToDeviceId: deviceId,
           guesses: {},
           isConnected: true
-        });
-        
-        // Make the new player findable
-        foundPlayer = game.players[game.players.length - 1];
+        };
+        game.players.push(newPlayerObj);
+        foundPlayer = newPlayerObj; // make sure it's not undefined
       }
       
       // Emit player joined event
@@ -371,11 +370,7 @@ class Multiplayer {
         timestamp: Date.now()
       });
 
-      return {
-        success: true,
-        game,
-        playerId // Return the player ID
-      };
+      return { success: true, game, playerId }; // always defined now
     } catch (error) {
       console.error("Error joining game:", error);
       return {
