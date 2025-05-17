@@ -155,7 +155,7 @@ class Multiplayer {
   // Join an existing game session with improved sync
   async joinGameSession(sessionCode: string, playerName: string): Promise<{ success: boolean, game?: Game, error?: string }> {
     try {
-      console.log(`Attempting to join game with session code: ${sessionCode}`);
+      console.log(`Attempting to join game with session code: ${sessionCode}, player name: ${playerName}`);
       
       // Get the game by session code
       const { data, error } = await supabase
@@ -252,10 +252,13 @@ class Multiplayer {
       
       // Check if this player name matches an existing player created by the host
       const deviceId = getDeviceId();
+      
+      // Improved player name comparison - normalize both strings for comparison
+      // This handles case-insensitive comparison and trims whitespace
       const matchingPlayer = game.players.find(p => 
         !p.isHost && 
         !p.assignedToDeviceId && 
-        p.name.toLowerCase() === playerName.toLowerCase()
+        p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
       );
       
       if (matchingPlayer) {
@@ -277,10 +280,17 @@ class Multiplayer {
             : p
         );
       } else {
+        // Log all player names to help debug matching issues
+        console.log("Available players:", game.players.map(p => ({
+          name: p.name, 
+          isHost: p.isHost,
+          hasDevice: !!p.assignedToDeviceId
+        })));
+        
         // No match found - this could mean they're using a different name than what the host created
         return {
           success: false,
-          error: "Please use one of the player names created by the host."
+          error: `Player name "${playerName}" was not found. Please use exactly one of the player names created by the host.`
         };
       }
       

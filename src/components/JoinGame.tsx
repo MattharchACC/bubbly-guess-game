@@ -37,8 +37,13 @@ const JoinGame: React.FC = () => {
     e.preventDefault();
     setError('');
     
-    if (!sessionCode.trim() || !playerName.trim()) {
-      setError("Please enter both a session code and your name");
+    if (!sessionCode.trim()) {
+      setError("Please enter the session code");
+      return;
+    }
+    
+    if (!playerName.trim()) {
+      setError("Please enter your player name");
       return;
     }
     
@@ -56,6 +61,10 @@ const JoinGame: React.FC = () => {
         });
       } else {
         // Successfully joined
+        toast({
+          title: "Joined game",
+          description: "Successfully joined the game session"
+        });
         navigate('/');
       }
     } catch (error) {
