@@ -361,12 +361,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [game, isHost, toast]);
   
-  // Generate a shareable link for joining the game - Updated to handle any domain
+  // Generate a shareable link for joining the game
   const shareableLink = game?.sessionCode 
     ? `${window.location.origin}/join?join=${game.sessionCode}` 
     : '';
 
-  // Modify this function to allow hosts to guess as well
+  // Allow hosts to guess as well
   const canPlayerGuess = (playerId: string): boolean => {
     if (!game) return false;
     
@@ -486,30 +486,53 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           assignedDevice: p.assignedToDeviceId
         })));
         
-        const player = result.game.players.find(p => 
+        // First try to find existing player by device ID
+        let foundPlayer = result.game.players.find(p => 
           (p.deviceId === deviceId || p.assignedToDeviceId === deviceId)
         );
         
-        if (player) {
-          console.log("Setting current player:", player);
-          setCurrentPlayer(player);
-        } else {
-          console.error("Could not find assigned player for this device");
-          // When player not found, let's still attempt to find by name
-          const namePlayer = result.game.players.find(p => 
+        // If player not found by device ID, try to find by name
+        if (!foundPlayer) {
+          console.log("Could not find player by device ID, trying by name");
+          foundPlayer = result.game.players.find(p => 
             p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
           );
           
-          if (namePlayer) {
-            console.log("Found player by name instead:", namePlayer);
-            // Assign this device to the player found by name
-            namePlayer.deviceId = deviceId;
-            namePlayer.assignedToDeviceId = deviceId;
-            setCurrentPlayer(namePlayer);
+          // If found by name, update device IDs
+          if (foundPlayer) {
+            console.log("Found player by name:", foundPlayer);
+            foundPlayer.deviceId = deviceId;
+            foundPlayer.assignedToDeviceId = deviceId;
           }
         }
         
-        storeGameSession(result.game);
+        if (foundPlayer) {
+          console.log("Setting current player:", foundPlayer);
+          setCurrentPlayer(foundPlayer);
+          
+          // Update game with correct device ID assignments
+          const updatedPlayers = result.game.players.map(p => 
+            p.id === foundPlayer?.id ? {...p, deviceId, assignedToDeviceId: deviceId} : p
+          );
+          
+          const updatedGame = {
+            ...result.game,
+            players: updatedPlayers
+          };
+          
+          setGame(updatedGame);
+          storeGameSession(updatedGame);
+          
+          // Emit player assigned event to sync with other clients
+          multiplayer.emit(SyncEvent.PLAYER_ASSIGNED, {
+            sessionCode: result.game.sessionCode,
+            playerId: foundPlayer.id,
+            deviceId,
+            timestamp: Date.now()
+          });
+        } else {
+          console.error("Could not find any player matching the joining user");
+        }
         
         toast({
           title: "Joined game",

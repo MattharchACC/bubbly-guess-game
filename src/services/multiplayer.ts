@@ -204,7 +204,8 @@ class Multiplayer {
         currentRound: data.current_round,
         isComplete: data.is_complete,
         sessionCode: data.session_code,
-        roundTimeLimit: data.round_time_limit,
+        roundTimeLimit: data.round_time_limit || 60,
+        enableTimeLimit: true, // Default to true for existing games
         players: data.players.map((p: any) => ({
           id: p.id,
           name: p.name,
@@ -217,7 +218,7 @@ class Multiplayer {
           id: r.id,
           name: r.name,
           correctDrinkId: r.correct_drink_id,
-          timeLimit: r.time_limit,
+          timeLimit: r.time_limit || 60,
           startTime: r.start_time ? new Date(r.start_time).getTime() : undefined,
           endTime: r.end_time ? new Date(r.end_time).getTime() : undefined
         })),
@@ -243,6 +244,12 @@ class Multiplayer {
           description: d.description,
           imageUrl: d.image_url
         }));
+      } else {
+        console.error("Failed to retrieve drinks data");
+        return {
+          success: false, 
+          error: "Failed to retrieve necessary game data" 
+        };
       }
       
       // Fetch existing guesses
@@ -272,7 +279,7 @@ class Multiplayer {
       
       // Check if this player name already exists in the game
       const existingPlayer = game.players.find(p => 
-        p.name.toLowerCase() === playerName.trim().toLowerCase()
+        p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
       );
       
       let playerId: string;
@@ -289,7 +296,7 @@ class Multiplayer {
           
         // Update the player in our game object
         game.players = game.players.map(p => 
-          p.id === existingPlayer.id ? { ...p, deviceId } : p
+          p.id === existingPlayer.id ? { ...p, deviceId, assignedToDeviceId: deviceId } : p
         );
       } else {
         // Create a new player
@@ -323,16 +330,26 @@ class Multiplayer {
           name: playerName.trim(),
           isHost: false,
           deviceId,
+          assignedToDeviceId: deviceId,
           guesses: {},
           isConnected: true
         });
       }
       
       // Emit player joined event
-      this.emit(SyncEvent.PLAYER_ASSIGNED, {
+      this.emit(SyncEvent.PLAYER_JOINED, {
         sessionCode,
         playerId,
         playerName,
+        deviceId,
+        game,
+        timestamp: Date.now()
+      });
+      
+      // Also emit player assigned event for explicit device-player association
+      this.emit(SyncEvent.PLAYER_ASSIGNED, {
+        sessionCode,
+        playerId,
         deviceId,
         timestamp: Date.now()
       });

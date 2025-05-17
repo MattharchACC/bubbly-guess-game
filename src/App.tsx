@@ -18,13 +18,12 @@ const JoinRedirect = () => {
   const navigate = useNavigate();
   
   useEffect(() => {
-    console.log("Current location:", location.pathname, location.search);
-    
     const params = new URLSearchParams(location.search);
     const joinCode = params.get('join');
     
     if (joinCode) {
       console.log("Join code detected in main app, redirecting to join page:", joinCode);
+      // Use replace to avoid browser history issues
       navigate(`/join?join=${joinCode}`, { replace: true });
     }
   }, [location, navigate]);
