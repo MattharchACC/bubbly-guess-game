@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ const GameRound: React.FC = () => {
     endGame, 
     isHost, 
     currentPlayer, 
-    shareableLink, 
+    shareableLink,
     canPlayerGuess 
   } = useGame();
   const [selectedTab, setSelectedTab] = useState<string>('');
@@ -38,13 +39,13 @@ const GameRound: React.FC = () => {
   const isLastRound = game.currentRound === game.rounds.length - 1;
   
   const handleSelect = (playerId: string, drinkId: string) => {
-    // Allow selection if player can guess (now includes host)
-    if (canPlayerGuess(playerId)) {
+    // Allow selection for any player that isn't the host
+    if (!isHost) {
       submitGuess(playerId, currentRound.id, drinkId);
     } else {
       toast({
         title: "Cannot make selection",
-        description: "You can only make guesses for your assigned player",
+        description: "Host is not allowed to make guesses",
         variant: "destructive"
       });
     }
@@ -100,8 +101,8 @@ const GameRound: React.FC = () => {
     player => Object.keys(player.guesses).includes(currentRound.id)
   );
   
-  // Determine if the current player can interact
-  const canInteract = currentPlayer !== null;
+  // Allow interactions for non-host players
+  const canInteract = !isHost;
 
   return (
     <div className="container mx-auto max-w-3xl animate-fade-in px-3">

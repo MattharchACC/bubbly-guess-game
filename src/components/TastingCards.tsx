@@ -26,12 +26,22 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
   
   const currentRound = game.rounds[game.currentRound];
   
-  // Only show the current player's card during active rounds, unless user is host or viewing results
-  const visiblePlayers = (isHost || showResults)
-    ? game.players
-    : game.players.filter(p => p.id === currentPlayer?.id);
+  // Fix: Always show current player's card or all cards for host
+  let visiblePlayers = [];
   
-  // If no players are visible (likely because currentPlayer is null), show a message
+  if (isHost) {
+    // Host can see all players
+    visiblePlayers = game.players;
+  } else if (currentPlayer) {
+    // Regular player can see their own card
+    visiblePlayers = [currentPlayer];
+  } else {
+    // If currentPlayer is null but we have players, show the first non-host player
+    // This is a fallback for when player assignment hasn't completed
+    visiblePlayers = game.players.filter(p => !p.isHost).slice(0, 1);
+  }
+  
+  // If no players are visible (likely because there are no players), show a message
   if (visiblePlayers.length === 0) {
     return (
       <div className="text-center p-8">
@@ -92,7 +102,7 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
                 const isSelected = player.guesses[currentRound.id] === drink.id;
                 const isCorrect = drink.id === currentRound.correctDrinkId;
                 const showFeedback = game.mode === 'beginner' && showResults && isSelected;
-                const canMakeGuess = isCurrentUserPlayer && !isSelected && !player.isHost;
+                const canMakeGuess = !player.isHost && (!isSelected || !currentPlayer);
                 
                 let feedbackClass = '';
                 if (showFeedback) {
