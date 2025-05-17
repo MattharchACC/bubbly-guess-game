@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -37,14 +36,36 @@ const GameRound: React.FC = () => {
   const isLastRound = game.currentRound === game.rounds.length - 1;
   
   const handleSelect = (playerId: string, drinkId: string) => {
-    // Log detailed information for debugging
+    // Enhanced logging for debugging
     console.log('handleSelect called with:', { 
       playerId, 
       drinkId, 
-      currentPlayer: currentPlayer?.id,
-      isHost,
-      game: game?.id 
+      currentPlayerId: currentPlayer?.id,
+      isPlayerMatchingCurrent: currentPlayer?.id === playerId,
+      isHost
     });
+    
+    // Make sure the current user can only submit guesses for themselves
+    if (currentPlayer?.id !== playerId) {
+      console.error(`Attempt to submit guess for another player (${playerId}) by ${currentPlayer?.id}`);
+      toast({
+        title: "Cannot submit guess",
+        description: "You can only make selections for yourself",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Hosts should not be able to submit guesses
+    if (isHost || (currentPlayer && currentPlayer.isHost)) {
+      console.error("Host attempted to submit a guess");
+      toast({
+        title: "Cannot submit guess",
+        description: "Hosts are not allowed to make guesses",
+        variant: "destructive"
+      });
+      return;
+    }
     
     // Make sure game and round exist
     if (!game || !currentRound) {
@@ -56,30 +77,8 @@ const GameRound: React.FC = () => {
       return;
     }
     
-    // Check if the player exists in the game
-    const player = game.players.find(p => p.id === playerId);
-    if (!player) {
-      console.error(`Player ${playerId} not found in game players:`, game.players.map(p => ({id: p.id, name: p.name})));
-      toast({
-        title: "Cannot submit guess",
-        description: "Player not found in this game",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Check if the player is a host (hosts can't make guesses)
-    if (player.isHost) {
-      toast({
-        title: "Cannot submit guess",
-        description: "Host is not allowed to make guesses",
-        variant: "destructive"
-      });
-      return;
-    }
-    
     // Submit the guess
-    console.log(`Submitting guess for player ${playerId} (${player.name}) and drink ${drinkId}`);
+    console.log(`Submitting guess for player ${playerId} (${currentPlayer?.name}) and drink ${drinkId}`);
     submitGuess(playerId, currentRound.id, drinkId);
   };
   
@@ -175,7 +174,6 @@ const GameRound: React.FC = () => {
           <CardTitle className="text-xl">Tasting Cards</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Only pass showResults when results should be shown */}
           <TastingCards 
             showResults={showResults} 
             onSelect={handleSelect} 

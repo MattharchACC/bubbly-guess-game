@@ -80,6 +80,7 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
       {visiblePlayers.map(player => {
         const isPlayerHost = player.isHost;
         const isSelected = !!player.guesses[currentRound.id];
+        const isCurrentPlayerTab = currentPlayer && currentPlayer.id === player.id;
         
         return (
           <TabsContent key={player.id} value={player.id} className="animate-fade-in">
@@ -93,7 +94,9 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
                   ? 'Host is not allowed to make guesses'
                   : isSelected
                     ? 'Selection has been made'
-                    : 'Select which drink you think this is'
+                    : isCurrentPlayerTab
+                      ? 'Select which drink you think this is'
+                      : `Only ${player.name} can make this selection`
                 }
               </p>
             </div>
@@ -104,9 +107,11 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
                 const isCorrect = drink.id === currentRound.correctDrinkId;
                 const showFeedback = game.mode === 'beginner' && showResults && isSelected;
                 
-                // Allow selection for all non-host players, regardless of currentPlayer state
-                // This ensures players can always make selections after refreshing
-                const canMakeGuess = !isPlayerHost && !isSelected;
+                // Only allow selection if:
+                // 1. This tab represents the current user (not someone else's tab)
+                // 2. The current user is not a host
+                // 3. The current player hasn't made a guess for this round already
+                const canMakeGuess = isCurrentPlayerTab && !isHost && !isSelected && !isPlayerHost;
                 
                 let feedbackClass = '';
                 if (showFeedback) {

@@ -740,7 +740,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Modified submitGuess function with better error handling
   const submitGuess = (playerId: string, roundId: string, drinkId: string) => {
-    if (!game) return;
+    if (!game) {
+      console.error("Cannot submit guess: No active game");
+      toast({
+        title: "Error",
+        description: "No active game found. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     console.log(`Attempting to submit guess for player ${playerId}, round ${roundId}, drink ${drinkId}`);
     
@@ -757,15 +765,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     
-    // Log the player details
-    console.log("Found player:", { 
-      id: player.id, 
-      name: player.name, 
-      isHost: player.isHost,
-      deviceId: player.deviceId,
-      assignedToDeviceId: player.assignedToDeviceId
-    });
-    
     // Don't allow hosts to submit guesses
     if (player.isHost) {
       console.error("Hosts cannot submit guesses:", playerId);
@@ -777,7 +776,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     
-    // For any non-host player, allow submission
+    // Check if the current user is submitting for themselves
+    if (currentPlayer && currentPlayer.id !== playerId) {
+      console.error(`User ${currentPlayer.id} (${currentPlayer.name}) tried to submit for player ${playerId}`);
+      toast({
+        title: "Cannot submit guess",
+        description: "You can only make selections for yourself",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Submit the guess to the database
     multiplayer.submitVote(game.id, playerId, roundId, drinkId);
     
     // Update local state immediately for better UX
@@ -799,6 +809,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setGame(updatedGame);
     storeGameSession(updatedGame);
     
+    // Broadcast the change to all connected clients
+    multiplayer.emit(SyncEvent.VOTE_SUBMITTED, {
+      gameId: game.id,
+      sessionCode: game.sessionCode,
+      playerId,
+      roundId,
+      drinkId,
+      timestamp: Date.now()
+    });
+    
+    // Show success toast
     toast({
       title: "Vote submitted",
       description: "Your selection has been recorded",
