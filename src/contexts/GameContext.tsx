@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Game, GameMode, Player, Round, Drink, SyncEvent } from '../types/game';
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +43,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Find current player based on device ID
       const player = storedGame.players.find(p => p.deviceId === deviceId || p.assignedToDeviceId === deviceId);
       setCurrentPlayer(player || null);
+      
+      // Log player assignments for debugging
+      console.log("Current device ID:", deviceId);
+      console.log("Available players:", storedGame.players.map(p => ({
+        name: p.name, 
+        isHost: p.isHost,
+        deviceId: p.deviceId,
+        assignedToDeviceId: p.assignedToDeviceId
+      })));
+      console.log("Current player set to:", player);
     }
   }, []);
   
@@ -468,10 +477,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setGame(result.game);
         setIsHost(false);
         
-        // Find the assigned player
+        // Find the assigned player with more detailed logging
         const deviceId = getDeviceId();
+        console.log("Looking for player with deviceId:", deviceId);
+        console.log("All players:", result.game.players.map(p => ({
+          id: p.id,
+          name: p.name,
+          deviceId: p.deviceId,
+          assignedDevice: p.assignedToDeviceId
+        })));
+        
         const player = result.game.players.find(p => 
-          (p.name.toLowerCase() === playerName.toLowerCase()) &&
           (p.deviceId === deviceId || p.assignedToDeviceId === deviceId)
         );
         
@@ -480,6 +496,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setCurrentPlayer(player);
         } else {
           console.error("Could not find assigned player for this device");
+          // When player not found, let's still attempt to find by name
+          const namePlayer = result.game.players.find(p => 
+            p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
+          );
+          
+          if (namePlayer) {
+            console.log("Found player by name instead:", namePlayer);
+            // Assign this device to the player found by name
+            namePlayer.deviceId = deviceId;
+            namePlayer.assignedToDeviceId = deviceId;
+            setCurrentPlayer(namePlayer);
+          }
         }
         
         storeGameSession(result.game);

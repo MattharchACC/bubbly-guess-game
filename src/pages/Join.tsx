@@ -1,9 +1,21 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Wine } from 'lucide-react';
 import JoinGame from '@/components/JoinGame';
+import { useGame } from '@/contexts/GameContext';
+import { useNavigate } from 'react-router-dom';
 
 const Join = () => {
+  const { game } = useGame();
+  const navigate = useNavigate();
+  
+  // Redirect to main game page if already in a game
+  useEffect(() => {
+    if (game) {
+      navigate('/');
+    }
+  }, [game, navigate]);
+  
   return (
     <div className="min-h-screen bg-bubbly-light">
       <header className="border-b bg-white/70 backdrop-blur-md sticky top-0 z-10">

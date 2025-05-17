@@ -50,6 +50,9 @@ const JoinGame: React.FC = () => {
     setIsJoining(true);
     
     try {
+      // Log the exact input values for debugging
+      console.log(`Attempting to join with: session=${sessionCode.trim()}, name=${playerName.trim()}`);
+      
       const result = await joinGame(sessionCode.trim(), playerName.trim());
       
       if (!result.success) {

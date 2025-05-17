@@ -253,13 +253,30 @@ class Multiplayer {
       // Check if this player name matches an existing player created by the host
       const deviceId = getDeviceId();
       
-      // Improved player name comparison - normalize both strings for comparison
-      // This handles case-insensitive comparison and trims whitespace
-      const matchingPlayer = game.players.find(p => 
-        !p.isHost && 
-        !p.assignedToDeviceId && 
-        p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
-      );
+      // Log all available player names for debugging
+      console.log("All players in game:", game.players.map(p => ({
+        name: p.name,
+        isHost: p.isHost,
+        deviceId: p.deviceId,
+        assigned: p.assignedToDeviceId
+      })));
+      
+      // Debug the exact input value we're trying to match
+      console.log(`Looking for match with name: "${playerName}"`);
+      
+      // Improved player name comparison with more thorough normalization
+      const normalizedInputName = playerName.trim().toLowerCase().replace(/\s+/g, ' ');
+      
+      // Find matching player with normalized comparison
+      const matchingPlayer = game.players.find(p => {
+        if (p.isHost || p.assignedToDeviceId) return false;
+        
+        // Normalize player name from database the same way
+        const normalizedPlayerName = p.name.trim().toLowerCase().replace(/\s+/g, ' ');
+        
+        console.log(`Comparing: "${normalizedPlayerName}" with "${normalizedInputName}"`);
+        return normalizedPlayerName === normalizedInputName;
+      });
       
       if (matchingPlayer) {
         console.log(`Found matching player: ${matchingPlayer.name} for device: ${deviceId}`);
