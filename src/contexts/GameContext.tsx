@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Game, GameMode, Player, Round, Drink, SyncEvent } from '../types/game';
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +20,7 @@ type GameContextType = {
   currentPlayer: Player | null;
   shareableLink: string;
   remainingTime: number | null;
+  canPlayerGuess: (playerId: string) => boolean;
 };
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -84,10 +84,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(intervalId);
   }, [game?.currentRound, game?.isComplete]);
   
-  // Listen for sync events
+  // Listen for sync events - improved for better synchronization
   useEffect(() => {
     const handlePlayerJoined = (data: any) => {
       if (!game) return;
+      
+      console.log("Player joined event received:", data);
       
       // Only the host should handle adding players
       if (isHost && data.sessionCode === game.sessionCode && data.playerName) {
@@ -96,7 +98,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: data.playerName,
           guesses: {},
           deviceId: data.deviceId,
-          isConnected: true
+          isConnected: true,
+          isHost: false // Explicitly mark as not host
         };
         
         const updatedGame = {
@@ -134,7 +137,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const handleGameStarted = (data: any) => {
       console.log("Game started event received:", data);
-      if (!game || data.gameId !== game.id) return;
+      if (!game) return;
+      
+      if (data.gameId !== game.id && data.sessionCode !== game.sessionCode) {
+        console.log("Game ID or session code mismatch, ignoring event");
+        return;
+      }
       
       // Update the game state for all players
       const updatedRounds = game.rounds.map((round, index) => {
@@ -149,7 +157,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         rounds: updatedRounds
       };
       
-      console.log("Updating game state for non-host:", updatedGame);
+      console.log("Updating game state for game start:", updatedGame);
       setGame(updatedGame);
       storeGameSession(updatedGame);
       
@@ -216,7 +224,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const handleGameCompleted = (data: any) => {
       console.log("Game completed event received:", data);
-      if (!game || data.gameId !== game.id) return;
+      if (!game) return;
+      
+      if (data.gameId !== game.id && data.sessionCode !== game.sessionCode) {
+        console.log("Game ID or session code mismatch, ignoring event");
+        return;
+      }
       
       const updatedGame = {
         ...game,
@@ -252,12 +265,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       multiplayer.removeEventListener(SyncEvent.ROUND_STARTED, handleRoundStarted);
       multiplayer.removeEventListener(SyncEvent.GAME_COMPLETED, handleGameCompleted);
     };
-  }, [game, isHost]);
+  }, [game, isHost, toast]);
   
   // Generate a shareable link for joining the game - Updated to handle any domain
   const shareableLink = game?.sessionCode 
     ? `${window.location.origin}/join?join=${game.sessionCode}` 
     : '';
+
+  // Add a function to determine if a player can make guesses (hosts cannot guess)
+  const canPlayerGuess = (playerId: string): boolean => {
+    if (!game) return false;
+    
+    const player = game.players.find(p => p.id === playerId);
+    // Host can't make guesses, only regular players can
+    return !!player && !player.isHost;
+  };
 
   const setUpGame = async (name: string, mode: GameMode, drinks: Drink[], roundCount: number, preassignedRounds?: Round[]) => {
     if (drinks.length < roundCount) {
@@ -460,9 +482,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Also emit round started event to ensure consistent state
     multiplayer.emit(SyncEvent.ROUND_STARTED, {
       gameId: game.id,
+      sessionCode: game.sessionCode,
       roundId: updatedRounds[0].id,
       roundIndex: 0,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      game: updatedGame // Include the full game state
     });
 
     toast({
@@ -518,6 +542,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Broadcast round change with full game data
     multiplayer.emit(SyncEvent.ROUND_STARTED, {
       gameId: game.id,
+      sessionCode: game.sessionCode,
       roundId: updatedRounds[nextRoundIndex].id,
       roundIndex: nextRoundIndex,
       timestamp: Date.now(),
@@ -607,6 +632,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       currentPlayer,
       shareableLink,
       remainingTime,
+      canPlayerGuess,
     }}>
       {children}
     </GameContext.Provider>

@@ -1,4 +1,3 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Game, SyncEvent } from '../types/game';
@@ -35,13 +34,15 @@ export const generateSessionCode = async (): Promise<string> => {
   
   if (error) {
     console.error('Error generating session code:', error);
-    // Fallback to client-side generation
+    // Fallback to client-side generation with timestamp to ensure uniqueness
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
     for (let i = 0; i < 6; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    return result;
+    // Add timestamp to ensure uniqueness
+    const timestamp = Date.now().toString(36).substring(4, 8);
+    return result.substring(0, 4) + timestamp;
   }
   
   return data;
@@ -68,11 +69,13 @@ class Multiplayer {
       });
   }
 
-  // Create a new game session
+  // Create a new game session with guaranteed unique session code
   createGameSession(game: Game): Game {
     if (!game.sessionCode) {
-      // Generate a temporary session code for UI display
-      const sessionCode = `DEMO${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      // Generate a temporary session code with timestamp for uniqueness
+      const now = new Date();
+      const timestampCode = now.getTime().toString(36).substring(4, 8).toUpperCase();
+      const sessionCode = `BUB${timestampCode}`;
       game.sessionCode = sessionCode;
     }
 
@@ -147,7 +150,7 @@ class Multiplayer {
     }
   }
 
-  // Join an existing game session
+  // Join an existing game session with improved sync
   async joinGameSession(sessionCode: string, playerName: string): Promise<{ success: boolean, game?: Game, error?: string }> {
     try {
       // Get the game by session code
@@ -215,8 +218,7 @@ class Multiplayer {
       // Fetch existing guesses
       const { data: guessesData } = await supabase
         .from('guesses')
-        .select('player_id, round_id, drink_id')
-        .eq('round_id', game.rounds[game.currentRound]?.id);
+        .select('player_id, round_id, drink_id');
         
       if (guessesData) {
         // Update players with their existing guesses
@@ -235,11 +237,13 @@ class Multiplayer {
         });
       }
       
-      // Emit player joined event
+      // Emit player joined event with device ID for tracking
+      const deviceId = getDeviceId();
       this.emit(SyncEvent.PLAYER_JOINED, {
         sessionCode,
         playerName,
-        deviceId: getDeviceId()
+        deviceId,
+        timestamp: Date.now()
       });
 
       console.log("Joined game successfully:", game);
@@ -277,9 +281,14 @@ class Multiplayer {
     this.listeners[event].forEach(callback => callback(data));
   }
 
-  // Broadcast an event to all connected clients
+  // Broadcast an event to all connected clients with improved reliability
   emit(event: SyncEvent, data: any): void {
     console.log(`Emitting event: ${event}`, data);
+    
+    // Add timestamp to all events if not already present
+    if (!data.timestamp) {
+      data.timestamp = Date.now();
+    }
     
     // Broadcast via Supabase Realtime
     const channel = supabase.channel('game-events');

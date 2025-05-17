@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import RoundTimer from '@/components/RoundTimer';
 
 const GameRound: React.FC = () => {
-  const { game, submitGuess, advanceRound, completeGame, endGame, isHost, currentPlayer, shareableLink } = useGame();
+  const { game, submitGuess, advanceRound, completeGame, endGame, isHost, currentPlayer, shareableLink, canPlayerGuess } = useGame();
   const [selectedTab, setSelectedTab] = useState<string>('');
   const [isDrinkSelected, setIsDrinkSelected] = useState<Record<string, boolean>>({});
   const [showResults, setShowResults] = useState<boolean>(false);
@@ -28,8 +29,17 @@ const GameRound: React.FC = () => {
   const isLastRound = game.currentRound === game.rounds.length - 1;
   
   const handleSelect = (playerId: string, drinkId: string) => {
-    submitGuess(playerId, currentRound.id, drinkId);
-    setIsDrinkSelected({...isDrinkSelected, [playerId]: true});
+    // Only allow selection if player can guess (not host)
+    if (canPlayerGuess(playerId)) {
+      submitGuess(playerId, currentRound.id, drinkId);
+      setIsDrinkSelected({...isDrinkSelected, [playerId]: true});
+    } else {
+      toast({
+        title: "Cannot make selection",
+        description: "As the host, you cannot make guesses",
+        variant: "destructive"
+      });
+    }
   };
   
   const handleShare = async () => {
@@ -80,16 +90,17 @@ const GameRound: React.FC = () => {
   };
 
   const allPlayersGuessed = game.players.every(
-    player => Object.keys(player.guesses).includes(currentRound.id)
+    player => player.isHost || Object.keys(player.guesses).includes(currentRound.id)
   );
   
-  const canInteract = currentPlayer && game.currentRound >= 0 && !game.isComplete;
+  const canInteract = currentPlayer && !currentPlayer.isHost && game.currentRound >= 0 && !game.isComplete;
 
   const renderDrinkOption = (drink, player) => {
     const isCurrentUserPlayer = currentPlayer && currentPlayer.id === player.id;
     const isSelected = player.guesses[currentRound.id] === drink.id;
     const isCorrect = drink.id === currentRound.correctDrinkId;
     const showFeedback = game.mode === 'beginner' && showResults && isSelected;
+    const playerCanMakeGuesses = canPlayerGuess(player.id);
     
     let feedbackClass = '';
     if (showFeedback) {
@@ -105,9 +116,9 @@ const GameRound: React.FC = () => {
           isSelected 
             ? `border-secondary bg-secondary/10 ${feedbackClass}` 
             : 'border-border hover:border-muted-foreground'
-        } mb-3`}
-        onClick={() => isCurrentUserPlayer && canInteract && !isSelected && handleSelect(player.id, drink.id)}
-        disabled={!canInteract || !isCurrentUserPlayer || !!player.guesses[currentRound.id]}
+        } mb-3 ${!playerCanMakeGuesses ? 'opacity-70' : ''}`}
+        onClick={() => isCurrentUserPlayer && canInteract && !isSelected && playerCanMakeGuesses && handleSelect(player.id, drink.id)}
+        disabled={!canInteract || !isCurrentUserPlayer || !!player.guesses[currentRound.id] || !playerCanMakeGuesses}
       >
         <div className="flex items-center">
           <div className="mr-3 rounded-full bg-muted/50 p-2">
@@ -184,6 +195,7 @@ const GameRound: React.FC = () => {
               {game.players.map(player => {
                 const hasGuessed = !!player.guesses[currentRound.id];
                 const isCurrentPlayer = currentPlayer && currentPlayer.id === player.id;
+                const isPlayerHost = player.isHost;
                 
                 return (
                   <TabsTrigger 
@@ -192,10 +204,12 @@ const GameRound: React.FC = () => {
                     className={`
                       data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg
                       ${hasGuessed ? 'text-green-600' : ''}
+                      ${isPlayerHost ? 'font-medium italic' : ''}
                       ${isCurrentPlayer ? 'font-medium' : ''}
                     `}
                   >
                     {player.name}
+                    {isPlayerHost && <span className="text-xs ml-1">(Host)</span>}
                     {hasGuessed && <Check className="h-3 w-3 ml-1" />}
                   </TabsTrigger>
                 );
@@ -204,24 +218,34 @@ const GameRound: React.FC = () => {
             
             {game.players.map(player => {
               const isCurrentUserPlayer = currentPlayer && currentPlayer.id === player.id;
+              const isPlayerHost = player.isHost;
               
               return (
                 <TabsContent key={player.id} value={player.id} className="animate-fade-in">
                   <div className="text-center mb-4">
                     <h3 className="text-lg font-medium">
                       {isCurrentUserPlayer ? 'Your Selection' : `${player.name}'s Selection`}
+                      {isPlayerHost && ' (Host)'}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      {isCurrentUserPlayer 
-                        ? 'Select which drink you think this is' 
-                        : `View ${player.name}'s selections`
+                      {isPlayerHost 
+                        ? 'Host is managing the game and does not make guesses' 
+                        : isCurrentUserPlayer 
+                          ? 'Select which drink you think this is' 
+                          : `View ${player.name}'s selections`
                       }
                     </p>
                   </div>
                   
-                  <div className="grid grid-cols-1 gap-3">
-                    {game.drinks.map(drink => renderDrinkOption(drink, player))}
-                  </div>
+                  {isPlayerHost ? (
+                    <div className="text-center p-6 bg-muted/30 rounded-xl">
+                      <p>As the host, {isCurrentUserPlayer ? 'you are' : 'this player is'} responsible for managing the game</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3">
+                      {game.drinks.map(drink => renderDrinkOption(drink, player))}
+                    </div>
+                  )}
                 </TabsContent>
               );
             })}
@@ -256,7 +280,7 @@ const GameRound: React.FC = () => {
               className="btn-primary text-sm"
             >
               {game && game.currentRound === game.rounds.length - 1 ? 'Finish Game' : 'Next Round'}
-              <ArrowRight className="ml-2 h-4 w-4" />
+              <ArrowRight className="ml-auto h-4 w-4" />
             </Button>
           )}
         </CardFooter>
