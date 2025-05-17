@@ -152,7 +152,7 @@ class Multiplayer {
     }
   }
 
-  // Join an existing game session with improved sync
+  // Join an existing game session with improved player name matching
   async joinGameSession(sessionCode: string, playerName: string): Promise<{ success: boolean, game?: Game, error?: string }> {
     try {
       console.log(`Attempting to join game with session code: ${sessionCode}, player name: ${playerName}`);
@@ -250,7 +250,7 @@ class Multiplayer {
         });
       }
       
-      // Check if this player name matches an existing player created by the host
+      // Get the device ID for this client
       const deviceId = getDeviceId();
       
       // Log all available player names for debugging
@@ -264,18 +264,30 @@ class Multiplayer {
       // Debug the exact input value we're trying to match
       console.log(`Looking for match with name: "${playerName}"`);
       
-      // Improved player name comparison with more thorough normalization
-      const normalizedInputName = playerName.trim().toLowerCase().replace(/\s+/g, ' ');
+      // Improved player name matching with more thorough normalization and debug logging
+      const normalizePlayerName = (name: string): string => {
+        return name.trim().toLowerCase().replace(/\s+/g, ' ');
+      };
       
-      // Find matching player with normalized comparison
+      const normalizedInputName = normalizePlayerName(playerName);
+      
+      // Find matching player with normalized comparison and detailed logging
       const matchingPlayer = game.players.find(p => {
-        if (p.isHost || p.assignedToDeviceId) return false;
+        if (p.isHost || p.assignedToDeviceId) {
+          console.log(`Skipping player ${p.name} (isHost: ${p.isHost}, already assigned: ${!!p.assignedToDeviceId})`);
+          return false;
+        }
         
-        // Normalize player name from database the same way
-        const normalizedPlayerName = p.name.trim().toLowerCase().replace(/\s+/g, ' ');
+        const normalizedPlayerName = normalizePlayerName(p.name);
         
         console.log(`Comparing: "${normalizedPlayerName}" with "${normalizedInputName}"`);
-        return normalizedPlayerName === normalizedInputName;
+        const isMatch = normalizedPlayerName === normalizedInputName;
+        
+        if (isMatch) {
+          console.log(`✓ MATCH FOUND for player: ${p.name}`);
+        }
+        
+        return isMatch;
       });
       
       if (matchingPlayer) {
