@@ -1,174 +1,145 @@
 
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowRight, UserPlus, AlertCircle, Info } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Copy, Check, Users } from 'lucide-react';
 
-const JoinGame: React.FC = () => {
-  const [sessionCode, setSessionCode] = useState<string>('');
-  const [playerName, setPlayerName] = useState<string>('');
-  const [isJoining, setIsJoining] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
-  const { joinGame, game } = useGame();
+interface JoinGameProps {
+  onJoining?: () => void;
+  onJoinError?: (error: string) => void;
+}
+
+const JoinGame: React.FC<JoinGameProps> = ({ onJoining, onJoinError }) => {
+  const { joinGame } = useGame();
   const location = useLocation();
-  const navigate = useNavigate();
-  
-  // Check URL for join code with improved error handling
+  const [joining, setJoining] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [playerName, setPlayerName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Get join code from URL if present
   useEffect(() => {
-    try {
-      const params = new URLSearchParams(location.search);
-      const joinCode = params.get('join');
-      
-      if (joinCode) {
-        console.log("Join code detected in JoinGame component:", joinCode);
-        setSessionCode(joinCode);
+    const params = new URLSearchParams(location.search);
+    const urlJoinCode = params.get('join');
+    
+    if (urlJoinCode) {
+      console.log("JoinGame component - Found join code in URL:", urlJoinCode);
+      setJoinCode(urlJoinCode);
+    } else {
+      // Try to get from localStorage if not in URL
+      const storedJoinCode = localStorage.getItem('lastJoinedSession');
+      if (storedJoinCode) {
+        console.log("JoinGame component - Found stored join code:", storedJoinCode);
+        setJoinCode(storedJoinCode);
       }
-    } catch (error) {
-      console.error("Error parsing URL parameters:", error);
+    }
+
+    // Get last used player name if available
+    const storedName = localStorage.getItem('playerName');
+    if (storedName) {
+      setPlayerName(storedName);
     }
   }, [location]);
 
-  // If already in a game and not on join page, redirect to main page
-  useEffect(() => {
-    if (game && !location.pathname.includes('/join')) {
-      navigate('/', { replace: true });
-    }
-  }, [game, navigate, location.pathname]);
-  
-  const handleJoin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     
-    if (!sessionCode.trim()) {
-      setError("Please enter the session code");
+    if (!joinCode.trim()) {
+      setError('Please enter a join code');
+      onJoinError?.('Please enter a join code');
       return;
     }
     
     if (!playerName.trim()) {
-      setError("Please enter your player name");
+      setError('Please enter your name');
+      onJoinError?.('Please enter your name');
       return;
     }
     
-    setIsJoining(true);
+    setError(null);
+    setJoining(true);
+    if (onJoining) onJoining();
+    
+    // Store name for future use
+    localStorage.setItem('playerName', playerName);
+    
+    console.log(`Attempting to join game with code: ${joinCode} as: ${playerName}`);
     
     try {
-      // Log the exact input values for debugging
-      console.log(`Attempting to join with: session=${sessionCode.trim()}, name=${playerName.trim()}`);
+      const { success, error: joinError } = await joinGame(joinCode, playerName);
       
-      const result = await joinGame(sessionCode.trim(), playerName.trim());
-      
-      if (!result.success) {
-        setError(result.error || "Could not connect to the game session");
-        toast({
-          title: "Failed to join game",
-          description: result.error || "Could not connect to the game session",
-          variant: "destructive"
-        });
-        setIsJoining(false); // Make sure to reset joining state on error
-      } else {
-        // Always save – result.playerId is now guaranteed
-        localStorage.setItem(`player:${sessionCode.trim()}`, result.playerId!);
-        console.log(`Saved player ID ${result.playerId} to localStorage for game ${sessionCode}`);
-        
-        toast({
-          title: "Joined game",
-          description: "Successfully joined the game session"
-        });
-        
-        // Go to the play route and leave the ?join= param out
-        navigate(`/play/${sessionCode.trim()}`);
+      if (!success) {
+        console.error("Join error:", joinError);
+        setError(joinError || 'Failed to join game');
+        setJoining(false);
+        if (onJoinError) onJoinError(joinError || 'Failed to join game');
       }
-    } catch (error) {
-      console.error("Join error:", error);
-      setError("An unexpected error occurred");
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        variant: "destructive"
-      });
-      setIsJoining(false); // Reset joining state on error
+    } catch (err) {
+      console.error("Error joining game:", err);
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
+      setJoining(false);
+      if (onJoinError) onJoinError(errorMessage);
     }
   };
-  
+
   return (
-    <div className="container mx-auto max-w-md py-12 animate-fade-in">
-      <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle className="heading-lg">Join Game</CardTitle>
-          <CardDescription>
-            Enter the session code and choose your player name
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <Card className="max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle className="text-2xl">Join Tasting Game</CardTitle>
+        <CardDescription>
+          Enter the game code provided by the host to join a tasting session
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="joinCode">Game Code</Label>
+            <Input
+              id="joinCode"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              placeholder="Enter 6-character code"
+              className="text-center uppercase tracking-widest font-semibold"
+              maxLength={6}
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="playerName">Your Name</Label>
+            <Input
+              id="playerName"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              placeholder="Enter your name"
+            />
+          </div>
           {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+            <p className="text-red-500 text-sm">{error}</p>
           )}
-          
-          <form onSubmit={handleJoin} className="space-y-4">
-            <div>
-              <label htmlFor="session-code" className="block text-sm font-medium mb-1">
-                Session Code
-              </label>
-              <Input
-                id="session-code"
-                placeholder="Enter 6-digit code"
-                value={sessionCode}
-                onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
-                className="rounded-xl"
-                maxLength={6}
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="player-name" className="block text-sm font-medium mb-1">
-                Your Name
-              </label>
-              <Input
-                id="player-name"
-                placeholder="Enter your name"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                className="rounded-xl"
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                Choose any name you'd like to use for this game session
-              </p>
-            </div>
-            
-            <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-700">
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                All players with the link can join this game by entering their preferred name
-              </AlertDescription>
-            </Alert>
-          </form>
-        </CardContent>
-        <CardFooter className="flex justify-end">
           <Button 
-            onClick={handleJoin} 
-            disabled={isJoining || !sessionCode.trim() || !playerName.trim()}
-            className="btn-primary"
+            type="submit" 
+            className="w-full" 
+            disabled={joining || !joinCode || !playerName}
           >
-            {isJoining ? (
-              "Connecting..."
-            ) : (
-              <>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Join Game
-              </>
-            )}
+            {joining ? 'Joining...' : 'Join Game'}
           </Button>
-        </CardFooter>
-      </Card>
-    </div>
+        </form>
+      </CardContent>
+      <CardFooter className="flex flex-col items-center space-y-4">
+        <div className="text-center text-sm text-muted-foreground">
+          <div className="flex items-center justify-center gap-1">
+            <Users className="h-4 w-4" /> 
+            <span>Don't have a code? Ask the host to share it with you.</span>
+          </div>
+        </div>
+      </CardFooter>
+    </Card>
   );
 };
 

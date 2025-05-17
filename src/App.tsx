@@ -41,8 +41,9 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/game" element={<><Index /><JoinRedirect /></>} />
+            {/* Remove the generic /game route */}
             <Route path="/join" element={<Join />} />
+            {/* This route will be used for both hosts and players */}
             <Route path="/play/:sessionCode" element={<><Index /><JoinRedirect /></>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,15 +1,64 @@
 
-import React from 'react';
-import { Wine, GlassWater, Users, Star } from 'lucide-react';
+import React, { useState } from 'react';
+import { Wine, GlassWater, Users, Star, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { multiplayer, generateSessionCode } from '@/services/multiplayer';
+import { v4 as uuidv4 } from 'uuid';
+import { Game, GameMode } from '@/types/game';
+import { toast } from "sonner";
 
 const Landing = () => {
   const navigate = useNavigate();
+  const [isCreating, setIsCreating] = useState(false);
   
-  const startNewGame = () => {
-    navigate('/game');
+  const startNewGame = async () => {
+    setIsCreating(true);
+    
+    try {
+      // Generate a unique game ID and session code
+      const gameId = uuidv4();
+      const sessionCode = await generateSessionCode();
+      
+      // Get device ID for host
+      const deviceId = localStorage.getItem('deviceId') || uuidv4();
+      if (!localStorage.getItem('deviceId')) {
+        localStorage.setItem('deviceId', deviceId);
+      }
+      
+      // Create a basic game structure
+      const initialGame: Game = {
+        id: gameId,
+        name: 'Prosecco Tasting Challenge',
+        mode: 'beginner' as GameMode,
+        hostId: gameId, // Use game ID as host ID initially
+        sessionCode,
+        isComplete: false,
+        currentRound: -1, // Not started yet
+        roundTimeLimit: 60,
+        enableTimeLimit: true,
+        players: [],
+        rounds: [],
+        drinks: []
+      };
+      
+      // Create the game session
+      await multiplayer.createGameSession(initialGame);
+      
+      // Store the session code in localStorage for recovery
+      localStorage.setItem('lastCreatedSession', sessionCode);
+      
+      console.log(`New game created with session code: ${sessionCode}`);
+      
+      // Navigate to the unique game URL
+      navigate(`/play/${sessionCode}`);
+      
+    } catch (error) {
+      console.error("Error creating new game:", error);
+      toast.error("Failed to create new game. Please try again.");
+      setIsCreating(false);
+    }
   };
   
   const joinExistingGame = () => {
@@ -42,8 +91,16 @@ const Landing = () => {
               onClick={startNewGame}
               size="lg"
               className="bg-primary text-white hover:bg-primary/90 text-lg px-8 py-6"
+              disabled={isCreating}
             >
-              Create New Game
+              {isCreating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating Game...
+                </>
+              ) : (
+                'Create New Game'
+              )}
             </Button>
             
             <Button
@@ -51,6 +108,7 @@ const Landing = () => {
               variant="outline"
               size="lg"
               className="border-primary text-primary hover:bg-primary/10 text-lg px-8 py-6"
+              disabled={isCreating}
             >
               Join Existing Game
             </Button>

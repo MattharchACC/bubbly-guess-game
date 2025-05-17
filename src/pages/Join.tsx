@@ -60,10 +60,21 @@ const Join = () => {
         localStorage.setItem(`playerName:${game.sessionCode}`, currentPlayer.name);
       }
       
-      // Use replace to avoid browser history issues
-      navigate('/', { replace: true });
+      // Redirect to the unique game URL
+      navigate(`/play/${game.sessionCode}`, { replace: true });
     }
   }, [game, currentPlayer, navigate]);
+  
+  // Handle joining state
+  const handleJoining = () => {
+    setIsJoining(true);
+  };
+  
+  // Handle join errors
+  const handleJoinError = (error: string) => {
+    setIsJoining(false);
+    setJoinError(error);
+  };
   
   return (
     <div className="min-h-screen bg-bubbly-light">
@@ -92,11 +103,8 @@ const Join = () => {
           </Card>
         ) : (
           <JoinGame 
-            onJoining={() => setIsJoining(true)} 
-            onJoinError={(error) => {
-              setIsJoining(false);
-              setJoinError(error);
-            }}
+            onJoining={handleJoining} 
+            onJoinError={handleJoinError}
           />
         )}
       </main>
