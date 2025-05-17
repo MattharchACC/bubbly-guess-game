@@ -16,15 +16,22 @@ export const getDeviceId = (): string => {
 export const storeGameSession = (game: Game | null): void => {
   if (game) {
     localStorage.setItem('gameSession', JSON.stringify(game));
+    console.log(`Game session stored in localStorage: ${game.id}, with ${game.players.length} players`);
   } else {
     localStorage.removeItem('gameSession');
+    console.log('Game session removed from localStorage');
   }
 };
 
 // Get stored game session from local storage
 export const getStoredGameSession = (): Game | null => {
   const storedGame = localStorage.getItem('gameSession');
-  return storedGame ? JSON.parse(storedGame) : null;
+  if (storedGame) {
+    console.log('Found stored game session in localStorage');
+    return JSON.parse(storedGame);
+  }
+  console.log('No stored game session found in localStorage');
+  return null;
 };
 
 // Generate a session code for joining games
@@ -421,9 +428,15 @@ class Multiplayer {
     this.notifyListeners(event, data);
   }
 
-  // Submit a vote/guess
+  // Submit a vote/guess with enhanced error handling
   submitVote(gameId: string, playerId: string, roundId: string, drinkId: string): void {
-    console.log(`Submitting vote for player ${playerId}, round ${roundId}, drink ${drinkId}`);
+    console.log(`Submitting vote: gameId=${gameId}, playerId=${playerId}, roundId=${roundId}, drinkId=${drinkId}`);
+    
+    // Check parameters
+    if (!gameId || !playerId || !roundId || !drinkId) {
+      console.error('Invalid parameters for submitVote:', { gameId, playerId, roundId, drinkId });
+      return;
+    }
     
     // Submit to Supabase
     supabase
@@ -433,13 +446,13 @@ class Multiplayer {
         round_id: roundId,
         drink_id: drinkId,
       })
-      .then(({ error }) => {
+      .then(({ data, error }) => {
         if (error) {
-          console.error('Error submitting vote:', error);
+          console.error('Error submitting vote to Supabase:', error);
           return;
         }
         
-        console.log('Vote submitted successfully to Supabase');
+        console.log('Vote submitted successfully to Supabase:', data);
         
         // Only broadcast the vote if successful
         this.emit(SyncEvent.VOTE_SUBMITTED, {

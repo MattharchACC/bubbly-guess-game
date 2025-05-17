@@ -14,32 +14,26 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
   const [selectedTab, setSelectedTab] = React.useState<string>('');
   
   React.useEffect(() => {
-    // Set selected tab to current player's ID
+    // Set selected tab to current player's ID or first player if currentPlayer is null
     if (currentPlayer && currentPlayer.id) {
       setSelectedTab(currentPlayer.id);
+      console.log("Selected tab set to current player:", currentPlayer.id);
     } else if (game?.players[0]?.id) {
       setSelectedTab(game.players[0].id);
+      console.log("Selected tab set to first player:", game.players[0].id);
     }
   }, [currentPlayer, game]);
   
-  if (!game || !game.rounds || game.currentRound < 0) return null;
+  if (!game || !game.rounds || game.currentRound < 0) {
+    console.log("TastingCards: No game data available");
+    return null;
+  }
   
   const currentRound = game.rounds[game.currentRound];
   
-  // Fix: Always show current player's card or all cards for host
-  let visiblePlayers = [];
-  
-  if (isHost) {
-    // Host can see all players
-    visiblePlayers = game.players;
-  } else if (currentPlayer) {
-    // Regular player can see their own card
-    visiblePlayers = [currentPlayer];
-  } else {
-    // If currentPlayer is null but we have players, show the first non-host player
-    // This is a fallback for when player assignment hasn't completed
-    visiblePlayers = game.players.filter(p => !p.isHost).slice(0, 1);
-  }
+  // Always show all players for simplicity - both host and regular players
+  // This ensures cards are visible regardless of player state or refresh
+  const visiblePlayers = game.players;
   
   // If no players are visible (likely because there are no players), show a message
   if (visiblePlayers.length === 0) {
@@ -50,7 +44,7 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
     );
   }
 
-  console.log('TastingCards - Visible players:', visiblePlayers.map(p => ({
+  console.log('TastingCards - All players:', visiblePlayers.map(p => ({
     id: p.id,
     name: p.name,
     isHost: p.isHost,
@@ -110,8 +104,8 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
                 const isCorrect = drink.id === currentRound.correctDrinkId;
                 const showFeedback = game.mode === 'beginner' && showResults && isSelected;
                 
-                // Allow selection only if player is not host and hasn't made a selection yet
-                // Important: Non-host players can make selections
+                // Allow selection for all non-host players, regardless of currentPlayer state
+                // This ensures players can always make selections after refreshing
                 const canMakeGuess = !isPlayerHost && !isSelected;
                 
                 let feedbackClass = '';
@@ -123,7 +117,7 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
                 
                 const handleDrinkSelect = () => {
                   if (canMakeGuess) {
-                    console.log(`Attempting to select drink ${drink.name} for player ${player.id}`);
+                    console.log(`TastingCards: Selecting drink ${drink.name} (${drink.id}) for player ${player.name} (${player.id})`);
                     onSelect(player.id, drink.id);
                   }
                 };

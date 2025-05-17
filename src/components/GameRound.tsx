@@ -57,9 +57,9 @@ const GameRound: React.FC = () => {
     }
     
     // Check if the player exists in the game
-    const playerExists = game.players.some(p => p.id === playerId);
-    if (!playerExists) {
-      console.error(`Player ${playerId} not found in game players:`, game.players.map(p => p.id));
+    const player = game.players.find(p => p.id === playerId);
+    if (!player) {
+      console.error(`Player ${playerId} not found in game players:`, game.players.map(p => ({id: p.id, name: p.name})));
       toast({
         title: "Cannot submit guess",
         description: "Player not found in this game",
@@ -68,9 +68,8 @@ const GameRound: React.FC = () => {
       return;
     }
     
-    // Check if the current user is allowed to make this selection
-    // For now, we allow any non-host user to make selections
-    if (isHost) {
+    // Check if the player is a host (hosts can't make guesses)
+    if (player.isHost) {
       toast({
         title: "Cannot submit guess",
         description: "Host is not allowed to make guesses",
@@ -80,7 +79,7 @@ const GameRound: React.FC = () => {
     }
     
     // Submit the guess
-    console.log(`Submitting guess for player ${playerId} and drink ${drinkId}`);
+    console.log(`Submitting guess for player ${playerId} (${player.name}) and drink ${drinkId}`);
     submitGuess(playerId, currentRound.id, drinkId);
   };
   

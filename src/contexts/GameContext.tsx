@@ -36,15 +36,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const storedGame = getStoredGameSession();
     if (storedGame) {
+      console.log("Initializing game from local storage:", storedGame.id);
       setGame(storedGame);
       const deviceId = getDeviceId();
       setIsHost(storedGame.hostId === deviceId);
-      
-      console.log("Initializing game from local storage:", storedGame.id);
       console.log("Current device ID:", deviceId);
+      console.log("Host ID:", storedGame.hostId);
+      console.log("Is host:", storedGame.hostId === deviceId);
       
-      // Find current player based on device ID first, then check game-specific localStorage key
-      let player = storedGame.players.find(p => p.deviceId === deviceId || p.assignedToDeviceId === deviceId);
+      // Find current player logic improved
+      let player = null;
+      
+      // First try to find by device ID
+      player = storedGame.players.find(p => {
+        const matches = p.deviceId === deviceId || p.assignedToDeviceId === deviceId;
+        console.log(`Checking player ${p.name} (${p.id}): deviceId=${p.deviceId}, assignedToDeviceId=${p.assignedToDeviceId}, matches=${matches}`);
+        return matches;
+      });
       
       // If player not found by device ID, try to find by stored player ID in localStorage
       if (!player && storedGame.sessionCode) {
@@ -53,27 +61,44 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (playerId) {
           player = storedGame.players.find(p => p.id === playerId);
+          console.log("Player found by ID:", player?.name);
+          
           // If found this way, update the device IDs for future reference
           if (player) {
             player.deviceId = deviceId;
             player.assignedToDeviceId = deviceId;
+            
+            // Update the game state with the updated player
+            setGame({
+              ...storedGame,
+              players: storedGame.players.map(p => 
+                p.id === player?.id ? {...p, deviceId, assignedToDeviceId: deviceId} : p
+              )
+            });
           }
         }
       }
       
+      // If we found a player, set it as the current player
       if (player) {
         console.log("Found player:", player.name);
         setCurrentPlayer(player);
+        
+        // Store the player ID in localStorage for this session
+        if (storedGame.sessionCode) {
+          localStorage.setItem(`player:${storedGame.sessionCode}`, player.id);
+        }
       } else {
         console.log("No player found for current device");
       }
       
-      // Log player assignments for debugging
+      // Log all available players for debugging
       console.log("Available players:", storedGame.players.map(p => ({
         name: p.name, 
         isHost: p.isHost,
         deviceId: p.deviceId,
-        assignedToDeviceId: p.assignedToDeviceId
+        assignedToDeviceId: p.assignedToDeviceId,
+        id: p.id
       })));
     }
   }, []);
@@ -489,7 +514,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  // Update joinGame to store player ID in localStorage
+  // Modified joinGame function to better handle player assignments
   const joinGame = async (sessionCode: string, playerName: string): Promise<{ success: boolean, error?: string, playerId?: string }> => {
     try {
       console.log(`Joining game with session code: ${sessionCode}, player name: ${playerName}`);
@@ -502,7 +527,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setGame(result.game);
         setIsHost(false);
         
-        // Find the assigned player with more detailed logging
+        // Get the device ID for this client
         const deviceId = getDeviceId();
         console.log("Looking for player with deviceId:", deviceId);
         console.log("All players:", result.game.players.map(p => ({
@@ -532,6 +557,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
         
+        // If we found a player, use it
         if (foundPlayer) {
           console.log("Setting current player:", foundPlayer);
           setCurrentPlayer(foundPlayer);
@@ -566,11 +592,51 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             success: true,
             playerId: foundPlayer.id
           };
+        } else if (result.playerId) {
+          // If we didn't find a player but multiplayer service returned a playerId
+          console.log("No player found in the game state, but multiplayer returned playerId:", result.playerId);
+          
+          // Try to find the player using the playerId returned from multiplayer
+          const playerFromId = result.game.players.find(p => p.id === result.playerId);
+          
+          if (playerFromId) {
+            console.log("Found player by ID from multiplayer:", playerFromId);
+            setCurrentPlayer(playerFromId);
+            
+            // Update device ID and store in localStorage
+            playerFromId.deviceId = deviceId;
+            playerFromId.assignedToDeviceId = deviceId;
+            localStorage.setItem(`player:${result.game.sessionCode}`, playerFromId.id);
+            
+            // Update game with the device ID assignments
+            const updatedPlayers = result.game.players.map(p => 
+              p.id === playerFromId.id ? {...p, deviceId, assignedToDeviceId: deviceId} : p
+            );
+            
+            const updatedGame = {
+              ...result.game,
+              players: updatedPlayers
+            };
+            
+            setGame(updatedGame);
+            storeGameSession(updatedGame);
+            
+            return { 
+              success: true,
+              playerId: playerFromId.id
+            };
+          } else {
+            console.error("Could not find any player matching the joining user");
+            return {
+              success: false,
+              error: "Could not find player in the game"
+            };
+          }
         } else {
           console.error("Could not find any player matching the joining user");
           return {
-            success: true,
-            playerId: result.playerId // Pass through the playerId from multiplayer
+            success: false,
+            error: "Could not find player in the game"
           };
         }
       }
@@ -672,15 +738,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  // Update submitGuess to be more permissive
+  // Modified submitGuess function with better error handling
   const submitGuess = (playerId: string, roundId: string, drinkId: string) => {
     if (!game) return;
     
     console.log(`Attempting to submit guess for player ${playerId}, round ${roundId}, drink ${drinkId}`);
     
     // Check if the player exists in the game
-    const playerExists = game.players.some(p => p.id === playerId);
-    if (!playerExists) {
+    const player = game.players.find(p => p.id === playerId);
+    if (!player) {
       console.error("Player does not exist in game:", playerId);
       console.error("Available players:", game.players.map(p => ({ id: p.id, name: p.name })));
       toast({
@@ -691,11 +757,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     
-    // Find the player object
-    const player = game.players.find(p => p.id === playerId);
+    // Log the player details
+    console.log("Found player:", { 
+      id: player.id, 
+      name: player.name, 
+      isHost: player.isHost,
+      deviceId: player.deviceId,
+      assignedToDeviceId: player.assignedToDeviceId
+    });
     
     // Don't allow hosts to submit guesses
-    if (player?.isHost) {
+    if (player.isHost) {
       console.error("Hosts cannot submit guesses:", playerId);
       toast({
         title: "Cannot submit guess",
@@ -711,16 +783,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Update local state immediately for better UX
     const updatedGame = {
       ...game,
-      players: game.players.map(player => 
-        player.id === playerId
+      players: game.players.map(p => 
+        p.id === playerId
           ? {
-              ...player,
+              ...p,
               guesses: {
-                ...player.guesses,
+                ...p.guesses,
                 [roundId]: drinkId,
               },
             }
-          : player
+          : p
       ),
     };
     
@@ -730,6 +802,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     toast({
       title: "Vote submitted",
       description: "Your selection has been recorded",
+      variant: "default" 
     });
   };
 
