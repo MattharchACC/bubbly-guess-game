@@ -10,6 +10,18 @@ const Join = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
+  // Log joining process to help with debugging
+  useEffect(() => {
+    console.log("Join page - Initial state:", { 
+      hasGame: !!game, 
+      hasCurrentPlayer: !!currentPlayer,
+      gameId: game?.id,
+      sessionCode: game?.sessionCode,
+      currentPlayerId: currentPlayer?.id,
+      currentPlayerName: currentPlayer?.name
+    });
+  }, []);
+  
   // If user has successfully joined a game, redirect them to the main game page
   useEffect(() => {
     if (game && currentPlayer) {
@@ -18,8 +30,16 @@ const Join = () => {
         id: currentPlayer.id,
         name: currentPlayer.name,
         isHost: currentPlayer.isHost,
-        deviceId: currentPlayer.deviceId
+        deviceId: currentPlayer.deviceId,
+        assignedToDeviceId: currentPlayer.assignedToDeviceId
       });
+      
+      // Store player ID in localStorage with game session code to help with recovery
+      if (game.sessionCode) {
+        localStorage.setItem(`player:${game.sessionCode}`, currentPlayer.id);
+        console.log(`Stored player ID (${currentPlayer.id}) in localStorage for session ${game.sessionCode}`);
+      }
+      
       // Use replace to avoid browser history issues
       navigate('/', { replace: true });
     }

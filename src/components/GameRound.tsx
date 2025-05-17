@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,20 @@ const GameRound: React.FC = () => {
     // Reset results when advancing to new round
     setShowResults(false);
   }, [game?.currentRound]);
+  
+  // Log current player status whenever it changes
+  useEffect(() => {
+    if (currentPlayer) {
+      console.log("GameRound - Current player updated:", {
+        id: currentPlayer.id,
+        name: currentPlayer.name,
+        isHost: currentPlayer.isHost,
+        deviceId: currentPlayer.deviceId
+      });
+    } else {
+      console.log("GameRound - No current player identified");
+    }
+  }, [currentPlayer]);
 
   if (!game || game.currentRound < 0) return null;
 
@@ -40,6 +55,18 @@ const GameRound: React.FC = () => {
       isHost,
       currentPlayerIsHost: currentPlayer?.isHost
     });
+    
+    // Make sure the player exists in the game
+    const playerInGame = game.players.find(p => p.id === playerId);
+    if (!playerInGame) {
+      console.error(`Player ${playerId} not found in game players:`, game.players.map(p => ({ id: p.id, name: p.name })));
+      toast({
+        title: "Cannot submit guess",
+        description: "Player not found in this game",
+        variant: "destructive"
+      });
+      return;
+    }
     
     // Make sure the user is submitting for themselves and not someone else
     if (!currentPlayer || currentPlayer.id !== playerId) {

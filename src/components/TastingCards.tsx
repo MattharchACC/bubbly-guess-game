@@ -17,10 +17,10 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
     // Set selected tab to current player's ID or first player if currentPlayer is null
     if (currentPlayer && currentPlayer.id) {
       setSelectedTab(currentPlayer.id);
-      console.log("Selected tab set to current player:", currentPlayer.id);
+      console.log("Selected tab set to current player:", currentPlayer.id, currentPlayer.name);
     } else if (game?.players[0]?.id) {
       setSelectedTab(game.players[0].id);
-      console.log("Selected tab set to first player:", game.players[0].id);
+      console.log("Selected tab set to first player:", game.players[0].id, game.players[0].name);
     }
   }, [currentPlayer, game]);
   
@@ -41,7 +41,8 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
     ? game.players 
     : (currentPlayer ? [currentPlayer] : []);
   
-  console.log("TastingCards - Visible players count:", visiblePlayers.length);
+  console.log("TastingCards - Visible players count:", visiblePlayers.length, 
+    "Players:", visiblePlayers.map(p => ({ id: p.id, name: p.name })));
   
   // Make sure that if there are no visible players, we show placeholder content
   if (visiblePlayers.length === 0) {
@@ -122,6 +123,19 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
         const isPlayerHost = player.isHost;
         const isSelected = !!player.guesses[currentRound.id];
         const isCurrentPlayerTab = currentPlayer && currentPlayer.id === player.id;
+        const deviceId = currentPlayer?.deviceId;
+        
+        // Debug logs for player identification
+        console.log(`TastingCards - Player tab ${player.name}:`, {
+          playerId: player.id,
+          playerName: player.name,
+          isCurrentTab: isCurrentPlayerTab,
+          currentPlayerId: currentPlayer?.id,
+          playerDeviceId: player.deviceId,
+          currentDeviceId: deviceId,
+          isHost: player.isHost,
+          tabSelected: selectedTab === player.id
+        });
         
         return (
           <TabsContent key={player.id} value={player.id} className="animate-fade-in">
@@ -169,6 +183,13 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
                 const handleDrinkSelect = () => {
                   if (canMakeGuess) {
                     console.log(`TastingCards: Selecting drink ${drink.name} (${drink.id}) for player ${player.name} (${player.id})`);
+                    console.log(`Current player details when selecting:`, {
+                      id: currentPlayer.id,
+                      name: currentPlayer.name,
+                      deviceId: currentPlayer.deviceId,
+                      isHost: currentPlayer.isHost,
+                      tabPlayerId: player.id
+                    });
                     onSelect(player.id, drink.id);
                   }
                 };

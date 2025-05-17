@@ -7,6 +7,7 @@ import PlayerRegistration from './PlayerRegistration';
 import GameRound from './GameRound';
 import GameResults from './GameResults';
 import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
 
 const GameContainer: React.FC = () => {
   const { game, isHost, currentPlayer, joinGame } = useGame();
@@ -35,6 +36,12 @@ const GameContainer: React.FC = () => {
         deviceId: currentPlayer.deviceId,
         assignedToDeviceId: currentPlayer.assignedToDeviceId
       });
+      
+      // Store player ID in localStorage with game session code to help with recovery
+      if (game.sessionCode) {
+        localStorage.setItem(`player:${game.sessionCode}`, currentPlayer.id);
+        console.log(`Stored player ID (${currentPlayer.id}) in localStorage for session ${game.sessionCode}`);
+      }
       
       toast({
         title: "Joined game",
@@ -90,8 +97,19 @@ const GameContainer: React.FC = () => {
           
           if (player) {
             console.log("Found player in game, attempting to rejoin:", player.name);
+            
+            // Log player details for debugging
+            console.log("Player details from game:", {
+              id: player.id,
+              name: player.name,
+              isHost: player.isHost,
+              deviceId: player.deviceId,
+              guesses: Object.keys(player.guesses).length
+            });
+            
             // Re-join the game with the stored player info
-            await joinGame(game.sessionCode, player.name);
+            const result = await joinGame(game.sessionCode, player.name);
+            console.log("Rejoin result:", result);
           }
         }
       }
@@ -112,12 +130,12 @@ const GameContainer: React.FC = () => {
           <p className="text-sm text-muted-foreground mb-6">
             Try using the join link again or ask the host to share a new link.
           </p>
-          <button 
+          <Button 
             onClick={() => navigate(`/join?join=${game.sessionCode}`, { replace: true })}
             className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
           >
             Try joining again
-          </button>
+          </Button>
         </div>
       </div>
     );
