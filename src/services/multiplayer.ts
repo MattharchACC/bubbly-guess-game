@@ -1,3 +1,4 @@
+
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Game, SyncEvent } from '../types/game';
@@ -70,19 +71,20 @@ class Multiplayer {
   }
 
   // Create a new game session with guaranteed unique session code
-  createGameSession(game: Game): Game {
-    if (!game.sessionCode) {
-      // Generate a temporary session code with timestamp for uniqueness
-      const now = new Date();
-      const timestampCode = now.getTime().toString(36).substring(4, 8).toUpperCase();
-      const sessionCode = `BUB${timestampCode}`;
-      game.sessionCode = sessionCode;
-    }
-
-    // Save the game to Supabase
-    this.saveGameToSupabase(game);
+  async createGameSession(game: Game): Promise<Game> {
+    // Generate a truly unique session code for this game
+    const sessionCode = await generateSessionCode();
+    console.log(`Generated unique session code: ${sessionCode}`);
     
-    return game;
+    const updatedGame = {
+      ...game,
+      sessionCode
+    };
+    
+    // Save the game to Supabase
+    await this.saveGameToSupabase(updatedGame);
+    
+    return updatedGame;
   }
 
   // Save game to Supabase database
@@ -153,6 +155,8 @@ class Multiplayer {
   // Join an existing game session with improved sync
   async joinGameSession(sessionCode: string, playerName: string): Promise<{ success: boolean, game?: Game, error?: string }> {
     try {
+      console.log(`Attempting to join game with session code: ${sessionCode}`);
+      
       // Get the game by session code
       const { data, error } = await supabase
         .from('games')
@@ -171,6 +175,8 @@ class Multiplayer {
           error: "Game not found. Check the session code and try again."
         };
       }
+
+      console.log("Found game data from Supabase:", data);
 
       // Convert Supabase data to Game type
       const game: Game = {
@@ -200,6 +206,13 @@ class Multiplayer {
         })),
         drinks: [] // We'll need to fetch drinks separately
       };
+      
+      // Sort rounds by order to ensure they're displayed correctly
+      game.rounds.sort((a: any, b: any) => {
+        const aOrder = data.game_rounds.find((r: any) => r.id === a.id)?.round_order || 0;
+        const bOrder = data.game_rounds.find((r: any) => r.id === b.id)?.round_order || 0;
+        return aOrder - bOrder;
+      });
       
       // Fetch drinks for this game
       const { data: drinksData } = await supabase
@@ -237,16 +250,51 @@ class Multiplayer {
         });
       }
       
-      // Emit player joined event with device ID for tracking
+      // Check if this player name matches an existing player created by the host
       const deviceId = getDeviceId();
-      this.emit(SyncEvent.PLAYER_JOINED, {
+      const matchingPlayer = game.players.find(p => 
+        !p.isHost && 
+        !p.assignedToDeviceId && 
+        p.name.toLowerCase() === playerName.toLowerCase()
+      );
+      
+      if (matchingPlayer) {
+        console.log(`Found matching player: ${matchingPlayer.name} for device: ${deviceId}`);
+        
+        // Emit player assignment event
+        this.emit(SyncEvent.PLAYER_ASSIGNED, {
+          sessionCode,
+          playerId: matchingPlayer.id,
+          playerName: matchingPlayer.name,
+          deviceId,
+          timestamp: Date.now()
+        });
+        
+        // Don't create a new player, but update the existing one with this device ID
+        game.players = game.players.map(p => 
+          p.id === matchingPlayer.id 
+            ? { ...p, deviceId, assignedToDeviceId: deviceId }
+            : p
+        );
+      } else {
+        // No match found - this could mean they're using a different name than what the host created
+        return {
+          success: false,
+          error: "Please use one of the player names created by the host."
+        };
+      }
+      
+      console.log("Final game state after joining:", game);
+      
+      // Request full game state from host
+      this.emit(SyncEvent.JOIN_GAME, {
         sessionCode,
         playerName,
         deviceId,
+        playerId: matchingPlayer?.id,
         timestamp: Date.now()
       });
 
-      console.log("Joined game successfully:", game);
       return {
         success: true,
         game

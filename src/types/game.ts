@@ -24,6 +24,7 @@ export interface Player {
   isHost?: boolean;
   isConnected?: boolean;
   deviceId?: string;
+  assignedToDeviceId?: string; // New field to track which device is assigned to this player
 }
 
 export interface Game {
@@ -38,6 +39,7 @@ export interface Game {
   sessionCode?: string; // Unique code for joining the game
   hostId?: string; // ID of the host player
   roundTimeLimit: number; // Default time limit for rounds in seconds
+  enableTimeLimit?: boolean; // Whether time limits are enabled
 }
 
 // New interface for tracking drink assignments during setup
@@ -67,4 +69,6 @@ export enum SyncEvent {
   VOTE_SUBMITTED = 'vote_submitted',
   ROUND_ENDED = 'round_ended',
   GAME_COMPLETED = 'game_completed',
+  PLAYER_ASSIGNED = 'player_assigned', // New event for player assignment
+  GAME_STATE_UPDATED = 'game_state_updated', // New event for full game state updates
 }

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Game, GameMode, Player, Round, Drink, SyncEvent } from '../types/game';
 import { useToast } from "@/hooks/use-toast";
@@ -7,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 type GameContextType = {
   game: Game | null;
-  setUpGame: (name: string, mode: GameMode, drinks: Drink[], roundCount: number, preassignedRounds?: Round[]) => void;
+  setUpGame: (name: string, mode: GameMode, drinks: Drink[], roundCount: number, preassignedRounds?: Round[], enableTimeLimit?: boolean) => void;
   addPlayer: (name: string) => void;
   startGame: () => void;
   submitGuess: (playerId: string, roundId: string, drinkId: string) => void;
@@ -40,15 +41,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const deviceId = getDeviceId();
       setIsHost(storedGame.hostId === deviceId);
       
-      // Find current player
-      const player = storedGame.players.find(p => p.deviceId === deviceId);
+      // Find current player based on device ID
+      const player = storedGame.players.find(p => p.deviceId === deviceId || p.assignedToDeviceId === deviceId);
       setCurrentPlayer(player || null);
     }
   }, []);
   
   // Set up timer for rounds
   useEffect(() => {
-    if (!game || game.currentRound < 0 || game.isComplete) {
+    if (!game || game.currentRound < 0 || game.isComplete || !game.enableTimeLimit) {
       setRemainingTime(null);
       return;
     }
@@ -82,56 +83,125 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, 1000);
     
     return () => clearInterval(intervalId);
-  }, [game?.currentRound, game?.isComplete]);
+  }, [game?.currentRound, game?.isComplete, game?.enableTimeLimit]);
   
-  // Listen for sync events - improved for better synchronization
+  // Listen for sync events with improved synchronization
   useEffect(() => {
+    // Handle player assignment (matching device to player created by host)
+    const handlePlayerAssignment = (data: any) => {
+      if (!game || game.sessionCode !== data.sessionCode) return;
+      
+      console.log("Player assignment event:", data);
+      
+      // Update the player with the device ID
+      const updatedGame = {
+        ...game,
+        players: game.players.map(player => 
+          player.id === data.playerId 
+            ? { ...player, deviceId: data.deviceId, assignedToDeviceId: data.deviceId } 
+            : player
+        )
+      };
+      
+      setGame(updatedGame);
+      storeGameSession(updatedGame);
+      
+      // If this is the host device, broadcast the updated game state
+      if (isHost) {
+        multiplayer.emit(SyncEvent.GAME_STATE_UPDATED, {
+          sessionCode: game.sessionCode,
+          game: updatedGame,
+          timestamp: Date.now()
+        });
+      }
+    };
+    
+    // Handle player joined events
     const handlePlayerJoined = (data: any) => {
       if (!game) return;
       
       console.log("Player joined event received:", data);
       
-      // Only the host should handle adding players
-      if (isHost && data.sessionCode === game.sessionCode && data.playerName) {
-        const newPlayer: Player = {
-          id: uuidv4(),
-          name: data.playerName,
-          guesses: {},
-          deviceId: data.deviceId,
-          isConnected: true,
-          isHost: false // Explicitly mark as not host
-        };
-        
-        const updatedGame = {
-          ...game,
-          players: [...game.players, newPlayer]
-        };
-        
-        setGame(updatedGame);
-        storeGameSession(updatedGame);
-        
-        // Notify all players about the updated game
-        multiplayer.emit(SyncEvent.PLAYER_JOINED, {
-          sessionCode: game.sessionCode,
-          game: updatedGame
-        });
-        
-        toast({
-          title: "Player joined",
-          description: `${data.playerName} has joined the game`,
-        });
-      } else if (!isHost && data.game) {
-        // Non-hosts should update their game state when players join
-        console.log("Receiving updated game state after player joined:", data.game);
+      if (data.sessionCode !== game.sessionCode) {
+        console.log("Session code mismatch, ignoring event");
+        return;
+      }
+      
+      // Only the host should handle adding players directly
+      if (isHost) {
+        // If this game session has already started, send the current game state to the new player
+        if (game.currentRound >= 0) {
+          console.log("Game already started, sending current state to new player");
+          multiplayer.emit(SyncEvent.GAME_STATE_UPDATED, {
+            sessionCode: game.sessionCode,
+            game: game,
+            targetDeviceId: data.deviceId,
+            timestamp: Date.now()
+          });
+        }
+      } else if (data.game) {
+        // Non-hosts should update their game state when game state is updated
+        console.log("Receiving updated game state:", data.game);
         setGame(data.game);
         storeGameSession(data.game);
         
         // Update current player reference
         const deviceId = getDeviceId();
-        const player = data.game.players.find((p: Player) => p.deviceId === deviceId);
+        const player = data.game.players.find((p: Player) => p.deviceId === deviceId || p.assignedToDeviceId === deviceId);
         if (player) {
           setCurrentPlayer(player);
         }
+      }
+    };
+    
+    // Handle player join requests - mainly for the host to respond with current game state
+    const handleJoinGame = (data: any) => {
+      if (!game || !isHost) return;
+      
+      if (data.sessionCode !== game.sessionCode) {
+        console.log("Session code mismatch, ignoring join request");
+        return;
+      }
+      
+      console.log("Join game request received, responding with current state:", data);
+      
+      // Host responds with current game state
+      multiplayer.emit(SyncEvent.GAME_STATE_UPDATED, {
+        sessionCode: game.sessionCode,
+        game: game,
+        targetDeviceId: data.deviceId,
+        timestamp: Date.now()
+      });
+    };
+    
+    // Handle game state updates from host
+    const handleGameStateUpdated = (data: any) => {
+      if (!game) return;
+      
+      if (data.sessionCode !== game.sessionCode) {
+        console.log("Session code mismatch, ignoring state update");
+        return;
+      }
+      
+      // Check if this update is targeted at a specific device
+      if (data.targetDeviceId && data.targetDeviceId !== getDeviceId()) {
+        console.log("State update targeted at another device, ignoring");
+        return;
+      }
+      
+      console.log("Game state update received:", data.game);
+      
+      // Update local game state
+      setGame(data.game);
+      storeGameSession(data.game);
+      
+      // Update current player reference
+      const deviceId = getDeviceId();
+      const player = data.game.players.find((p: Player) => p.deviceId === deviceId || p.assignedToDeviceId === deviceId);
+      
+      if (player) {
+        console.log("Updated current player:", player);
+        setCurrentPlayer(player);
       }
     };
     
@@ -220,6 +290,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Updating game state for round start:", updatedGame);
       setGame(updatedGame);
       storeGameSession(updatedGame);
+      
+      // If this is the host, broadcast the updated game state to ensure all clients are in sync
+      if (isHost) {
+        multiplayer.emit(SyncEvent.GAME_STATE_UPDATED, {
+          sessionCode: game.sessionCode,
+          game: updatedGame,
+          timestamp: Date.now()
+        });
+      }
     };
     
     const handleGameCompleted = (data: any) => {
@@ -252,14 +331,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     
+    multiplayer.addEventListener(SyncEvent.PLAYER_ASSIGNED, handlePlayerAssignment);
     multiplayer.addEventListener(SyncEvent.PLAYER_JOINED, handlePlayerJoined);
+    multiplayer.addEventListener(SyncEvent.JOIN_GAME, handleJoinGame);
+    multiplayer.addEventListener(SyncEvent.GAME_STATE_UPDATED, handleGameStateUpdated);
     multiplayer.addEventListener(SyncEvent.GAME_STARTED, handleGameStarted);
     multiplayer.addEventListener(SyncEvent.VOTE_SUBMITTED, handleVoteSubmitted);
     multiplayer.addEventListener(SyncEvent.ROUND_STARTED, handleRoundStarted);
     multiplayer.addEventListener(SyncEvent.GAME_COMPLETED, handleGameCompleted);
     
     return () => {
+      multiplayer.removeEventListener(SyncEvent.PLAYER_ASSIGNED, handlePlayerAssignment);
       multiplayer.removeEventListener(SyncEvent.PLAYER_JOINED, handlePlayerJoined);
+      multiplayer.removeEventListener(SyncEvent.JOIN_GAME, handleJoinGame);
+      multiplayer.removeEventListener(SyncEvent.GAME_STATE_UPDATED, handleGameStateUpdated);
       multiplayer.removeEventListener(SyncEvent.GAME_STARTED, handleGameStarted);
       multiplayer.removeEventListener(SyncEvent.VOTE_SUBMITTED, handleVoteSubmitted);
       multiplayer.removeEventListener(SyncEvent.ROUND_STARTED, handleRoundStarted);
@@ -277,11 +362,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!game) return false;
     
     const player = game.players.find(p => p.id === playerId);
-    // Host can't make guesses, only regular players can
-    return !!player && !player.isHost;
+    // Only non-host players can guess
+    if (!player || player.isHost) return false;
+    
+    // The current device must be assigned to this player
+    const deviceId = getDeviceId();
+    return player.deviceId === deviceId || player.assignedToDeviceId === deviceId;
   };
 
-  const setUpGame = async (name: string, mode: GameMode, drinks: Drink[], roundCount: number, preassignedRounds?: Round[]) => {
+  const setUpGame = async (
+    name: string, 
+    mode: GameMode, 
+    drinks: Drink[], 
+    roundCount: number, 
+    preassignedRounds?: Round[],
+    enableTimeLimit: boolean = true
+  ) => {
     if (drinks.length < roundCount) {
       toast({
         title: "Not enough drinks",
@@ -293,6 +389,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Generate a session code
     const sessionCode = await generateSessionCode();
+    console.log("Generated session code:", sessionCode);
 
     // Create rounds with assigned drinks or random if not provided
     let rounds: Round[];
@@ -340,10 +437,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       hostId: deviceId,
       roundTimeLimit, // Use the time limit from rounds
       sessionCode, // Add session code from the beginning
+      enableTimeLimit // Add the time limit setting
     };
     
+    console.log("Creating new game:", newGame);
+    
     // Create multiplayer session (which will now save to Supabase)
-    const gameWithSession = multiplayer.createGameSession(newGame);
+    const gameWithSession = await multiplayer.createGameSession(newGame);
     
     setGame(gameWithSession);
     setIsHost(true);
@@ -358,38 +458,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const joinGame = async (sessionCode: string, playerName: string): Promise<{ success: boolean, error?: string }> => {
     try {
+      console.log(`Joining game with session code: ${sessionCode}, player name: ${playerName}`);
+      
       const result = await multiplayer.joinGameSession(sessionCode, playerName);
       
       if (result.success && result.game) {
+        console.log("Join game successful, setting game state:", result.game);
+        
         setGame(result.game);
         setIsHost(false);
         
-        // Find or create current player
+        // Find the assigned player
         const deviceId = getDeviceId();
-        let player = result.game.players.find(p => p.deviceId === deviceId);
+        const player = result.game.players.find(p => 
+          (p.name.toLowerCase() === playerName.toLowerCase()) &&
+          (p.deviceId === deviceId || p.assignedToDeviceId === deviceId)
+        );
         
-        if (!player) {
-          // This shouldn't normally happen as the host should have added the player
-          // but just in case, we'll add the player locally
-          player = {
-            id: uuidv4(),
-            name: playerName,
-            guesses: {},
-            deviceId,
-            isConnected: true
-          };
-          
-          // Add player to the game object
-          const updatedGame = {
-            ...result.game,
-            players: [...result.game.players, player]
-          };
-          
-          setGame(updatedGame);
-          storeGameSession(updatedGame);
+        if (player) {
+          console.log("Setting current player:", player);
+          setCurrentPlayer(player);
+        } else {
+          console.error("Could not find assigned player for this device");
         }
         
-        setCurrentPlayer(player);
         storeGameSession(result.game);
         
         toast({
@@ -420,7 +512,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: uuidv4(),
       name,
       guesses: {},
-      deviceId: getDeviceId(),
       isConnected: true
     };
 
@@ -431,21 +522,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     setGame(updatedGame);
     storeGameSession(updatedGame);
-    
-    if (getDeviceId() === newPlayer.deviceId) {
-      setCurrentPlayer(newPlayer);
-    }
 
     toast({
       title: "Player added",
-      description: `${name} has joined the game`,
+      description: `${name} has been added to the game`,
     });
   };
 
   const startGame = () => {
     if (!game) return;
     
-    if (game.players.length === 0) {
+    if (game.players.length <= 1) { // Only have host
       toast({
         title: "No players",
         description: "Add at least one player to start the game",
@@ -489,6 +576,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       game: updatedGame // Include the full game state
     });
 
+    // Emit full game state update to ensure all clients are in sync
+    multiplayer.emit(SyncEvent.GAME_STATE_UPDATED, {
+      sessionCode: game.sessionCode,
+      game: updatedGame,
+      timestamp: Date.now()
+    });
+
     toast({
       title: "Game started",
       description: "The first round has begun!",
@@ -498,9 +592,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const submitGuess = (playerId: string, roundId: string, drinkId: string) => {
     if (!game) return;
     
+    // Extra validation to ensure only the rightful player can submit guesses
+    if (!canPlayerGuess(playerId)) {
+      console.error("This device cannot submit guesses for player:", playerId);
+      toast({
+        title: "Cannot submit guess",
+        description: "You can only submit guesses for your assigned player",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     multiplayer.submitVote(game.id, playerId, roundId, drinkId);
     
-    setGame({
+    // Update local state immediately for better UX
+    const updatedGame = {
       ...game,
       players: game.players.map(player => 
         player.id === playerId
@@ -513,7 +619,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           : player
       ),
-    });
+    };
+    
+    setGame(updatedGame);
+    storeGameSession(updatedGame);
   };
 
   const advanceRound = () => {
@@ -548,6 +657,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       timestamp: Date.now(),
       game: updatedGame // Send the full updated game state
     });
+    
+    // Also send full game state update
+    multiplayer.emit(SyncEvent.GAME_STATE_UPDATED, {
+      sessionCode: game.sessionCode,
+      game: updatedGame,
+      timestamp: Date.now()
+    });
 
     toast({
       title: `Round ${nextRoundIndex + 1}`,
@@ -569,8 +685,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Broadcast game completion with full game data
     multiplayer.emit(SyncEvent.GAME_COMPLETED, {
       gameId: game.id,
+      sessionCode: game.sessionCode,
       timestamp: Date.now(),
       game: updatedGame // Send the full updated game state
+    });
+    
+    // Also send full game state update
+    multiplayer.emit(SyncEvent.GAME_STATE_UPDATED, {
+      sessionCode: game.sessionCode,
+      game: updatedGame,
+      timestamp: Date.now()
     });
 
     toast({
@@ -593,9 +717,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Broadcast game ending with full game data
     multiplayer.emit(SyncEvent.GAME_COMPLETED, {
       gameId: game.id,
+      sessionCode: game.sessionCode,
       timestamp: Date.now(),
       endedEarly: true,
       game: updatedGame // Send the full updated game state
+    });
+    
+    // Also send full game state update
+    multiplayer.emit(SyncEvent.GAME_STATE_UPDATED, {
+      sessionCode: game.sessionCode,
+      game: updatedGame,
+      timestamp: Date.now()
     });
 
     toast({

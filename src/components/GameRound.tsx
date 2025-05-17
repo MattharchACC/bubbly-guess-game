@@ -9,9 +9,18 @@ import { toast } from '@/hooks/use-toast';
 import RoundTimer from '@/components/RoundTimer';
 
 const GameRound: React.FC = () => {
-  const { game, submitGuess, advanceRound, completeGame, endGame, isHost, currentPlayer, shareableLink, canPlayerGuess } = useGame();
+  const { 
+    game, 
+    submitGuess, 
+    advanceRound, 
+    completeGame, 
+    endGame, 
+    isHost, 
+    currentPlayer, 
+    shareableLink, 
+    canPlayerGuess 
+  } = useGame();
   const [selectedTab, setSelectedTab] = useState<string>('');
-  const [isDrinkSelected, setIsDrinkSelected] = useState<Record<string, boolean>>({});
   const [showResults, setShowResults] = useState<boolean>(false);
   
   useEffect(() => {
@@ -32,7 +41,6 @@ const GameRound: React.FC = () => {
     // Only allow selection if player can guess (not host)
     if (canPlayerGuess(playerId)) {
       submitGuess(playerId, currentRound.id, drinkId);
-      setIsDrinkSelected({...isDrinkSelected, [playerId]: true});
     } else {
       toast({
         title: "Cannot make selection",
@@ -79,7 +87,6 @@ const GameRound: React.FC = () => {
 
   const handleNext = () => {
     // Reset states for the next round
-    setIsDrinkSelected({});
     setShowResults(false);
     
     if (isLastRound) {
@@ -93,7 +100,8 @@ const GameRound: React.FC = () => {
     player => player.isHost || Object.keys(player.guesses).includes(currentRound.id)
   );
   
-  const canInteract = currentPlayer && !currentPlayer.isHost && game.currentRound >= 0 && !game.isComplete;
+  // Determine if the current player can interact
+  const canInteract = currentPlayer && !currentPlayer.isHost;
 
   const renderDrinkOption = (drink, player) => {
     const isCurrentUserPlayer = currentPlayer && currentPlayer.id === player.id;
@@ -117,8 +125,8 @@ const GameRound: React.FC = () => {
             ? `border-secondary bg-secondary/10 ${feedbackClass}` 
             : 'border-border hover:border-muted-foreground'
         } mb-3 ${!playerCanMakeGuesses ? 'opacity-70' : ''}`}
-        onClick={() => isCurrentUserPlayer && canInteract && !isSelected && playerCanMakeGuesses && handleSelect(player.id, drink.id)}
-        disabled={!canInteract || !isCurrentUserPlayer || !!player.guesses[currentRound.id] || !playerCanMakeGuesses}
+        onClick={() => isCurrentUserPlayer && !isSelected && playerCanMakeGuesses && handleSelect(player.id, drink.id)}
+        disabled={!playerCanMakeGuesses || !isCurrentUserPlayer || !!player.guesses[currentRound.id]}
       >
         <div className="flex items-center">
           <div className="mr-3 rounded-full bg-muted/50 p-2">
@@ -219,6 +227,7 @@ const GameRound: React.FC = () => {
             {game.players.map(player => {
               const isCurrentUserPlayer = currentPlayer && currentPlayer.id === player.id;
               const isPlayerHost = player.isHost;
+              const playerCanGuess = canPlayerGuess(player.id);
               
               return (
                 <TabsContent key={player.id} value={player.id} className="animate-fade-in">
@@ -230,9 +239,11 @@ const GameRound: React.FC = () => {
                     <p className="text-sm text-muted-foreground">
                       {isPlayerHost 
                         ? 'Host is managing the game and does not make guesses' 
-                        : isCurrentUserPlayer 
+                        : isCurrentUserPlayer && playerCanGuess
                           ? 'Select which drink you think this is' 
-                          : `View ${player.name}'s selections`
+                          : isCurrentUserPlayer
+                            ? 'You cannot make guesses for this player'
+                            : `View ${player.name}'s selections`
                       }
                     </p>
                   </div>

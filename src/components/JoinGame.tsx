@@ -5,13 +5,15 @@ import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowRight, UserPlus } from 'lucide-react';
+import { ArrowRight, UserPlus, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const JoinGame: React.FC = () => {
   const [sessionCode, setSessionCode] = useState<string>('');
   const [playerName, setPlayerName] = useState<string>('');
   const [isJoining, setIsJoining] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
   const { joinGame } = useGame();
   const location = useLocation();
   const navigate = useNavigate();
@@ -33,13 +35,10 @@ const JoinGame: React.FC = () => {
   
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     
     if (!sessionCode.trim() || !playerName.trim()) {
-      toast({
-        title: "Missing information",
-        description: "Please enter both a session code and your name",
-        variant: "destructive"
-      });
+      setError("Please enter both a session code and your name");
       return;
     }
     
@@ -49,6 +48,7 @@ const JoinGame: React.FC = () => {
       const result = await joinGame(sessionCode.trim(), playerName.trim());
       
       if (!result.success) {
+        setError(result.error || "Could not connect to the game session");
         toast({
           title: "Failed to join game",
           description: result.error || "Could not connect to the game session",
@@ -60,6 +60,7 @@ const JoinGame: React.FC = () => {
       }
     } catch (error) {
       console.error("Join error:", error);
+      setError("An unexpected error occurred");
       toast({
         title: "Error",
         description: "An unexpected error occurred",
@@ -76,10 +77,17 @@ const JoinGame: React.FC = () => {
         <CardHeader>
           <CardTitle className="heading-lg">Join Game</CardTitle>
           <CardDescription>
-            Enter the session code to join an existing game
+            Enter the session code and your name exactly as created by the host
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
           <form onSubmit={handleJoin} className="space-y-4">
             <div>
               <label htmlFor="session-code" className="block text-sm font-medium mb-1">
@@ -106,6 +114,9 @@ const JoinGame: React.FC = () => {
                 onChange={(e) => setPlayerName(e.target.value)}
                 className="rounded-xl"
               />
+              <p className="text-sm text-muted-foreground mt-1">
+                Use the exact player name created by the host
+              </p>
             </div>
           </form>
         </CardContent>
