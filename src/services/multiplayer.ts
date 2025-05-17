@@ -1,4 +1,3 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Game, SyncEvent } from '../types/game';
@@ -53,13 +52,14 @@ class Multiplayer {
   // Event listeners for sync events
   private listeners: Record<string, Function[]> = {};
 
-  constructor() {
-    this.setupRealtimeListeners();
-  }
+  // Create ONE channel and reuse it everywhere
+  private channel = supabase.channel('game-events', {
+    config: { broadcast: { self: true } }, // let sender receive its own messages
+  });
 
-  // Set up Supabase realtime listeners
-  private setupRealtimeListeners() {
-    const channel = supabase.channel('game-updates')
+  constructor() {
+    // Subscribe once in the constructor
+    this.channel
       .on('broadcast', { event: 'game-event' }, (payload) => {
         const { event, data } = payload.payload;
         console.log(`Received event: ${event}`, data);
@@ -408,24 +408,12 @@ class Multiplayer {
       data.timestamp = Date.now();
     }
     
-    // Broadcast via Supabase Realtime
-    const channel = supabase.channel('game-events');
-    
-    try {
-      // Subscribe to the channel first
-      channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          // Send the message after subscription
-          channel.send({
-            type: 'broadcast',
-            event: 'game-event',
-            payload: { event, data }
-          });
-        }
-      });
-    } catch (error) {
-      console.error('Error broadcasting event:', error);
-    }
+    // Just send - the channel is already subscribed
+    this.channel.send({
+      type: 'broadcast',
+      event: 'game-event',
+      payload: { event, data }
+    });
     
     // Also notify local listeners
     this.notifyListeners(event, data);
