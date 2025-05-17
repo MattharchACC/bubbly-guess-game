@@ -18,17 +18,12 @@ const GameRound: React.FC = () => {
     currentPlayer, 
     shareableLink
   } = useGame();
-  const [selectedTab, setSelectedTab] = useState<string>('');
   const [showResults, setShowResults] = useState<boolean>(false);
   
   useEffect(() => {
-    // Set selected tab to current player's ID
-    if (currentPlayer && currentPlayer.id) {
-      setSelectedTab(currentPlayer.id);
-    } else if (game?.players[0]?.id) {
-      setSelectedTab(game.players[0].id);
-    }
-  }, [currentPlayer, game]);
+    // Reset results when advancing to new round
+    setShowResults(false);
+  }, [game?.currentRound]);
 
   if (!game || game.currentRound < 0) return null;
 
@@ -42,12 +37,13 @@ const GameRound: React.FC = () => {
       drinkId, 
       currentPlayerId: currentPlayer?.id,
       isPlayerMatchingCurrent: currentPlayer?.id === playerId,
-      isHost
+      isHost,
+      currentPlayerIsHost: currentPlayer?.isHost
     });
     
-    // Make sure the current user can only submit guesses for themselves
-    if (currentPlayer?.id !== playerId) {
-      console.error(`Attempt to submit guess for another player (${playerId}) by ${currentPlayer?.id}`);
+    // Make sure the user is submitting for themselves and not someone else
+    if (!currentPlayer || currentPlayer.id !== playerId) {
+      console.error(`Cannot submit guess: Current player (${currentPlayer?.id}) does not match selected player (${playerId})`);
       toast({
         title: "Cannot submit guess",
         description: "You can only make selections for yourself",
@@ -57,7 +53,7 @@ const GameRound: React.FC = () => {
     }
     
     // Hosts should not be able to submit guesses
-    if (isHost || (currentPlayer && currentPlayer.isHost)) {
+    if (currentPlayer.isHost) {
       console.error("Host attempted to submit a guess");
       toast({
         title: "Cannot submit guess",
@@ -78,7 +74,7 @@ const GameRound: React.FC = () => {
     }
     
     // Submit the guess
-    console.log(`Submitting guess for player ${playerId} (${currentPlayer?.name}) and drink ${drinkId}`);
+    console.log(`Submitting guess for player ${playerId} (${currentPlayer.name}) and drink ${drinkId}`);
     submitGuess(playerId, currentRound.id, drinkId);
   };
   

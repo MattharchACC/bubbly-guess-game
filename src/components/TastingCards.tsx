@@ -31,11 +31,14 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
   
   const currentRound = game.rounds[game.currentRound];
   
-  // Always show all players for simplicity - both host and regular players
-  // This ensures cards are visible regardless of player state or refresh
-  const visiblePlayers = game.players;
+  // Filter players based on user role
+  // If user is host, show all players
+  // If user is regular player, only show themselves
+  const visiblePlayers = isHost
+    ? game.players
+    : game.players.filter(player => player.id === currentPlayer?.id);
   
-  // If no players are visible (likely because there are no players), show a message
+  // If no players are visible, show a message
   if (visiblePlayers.length === 0) {
     return (
       <div className="text-center p-8">
@@ -44,7 +47,7 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
     );
   }
 
-  console.log('TastingCards - All players:', visiblePlayers.map(p => ({
+  console.log('TastingCards - Visible players:', visiblePlayers.map(p => ({
     id: p.id,
     name: p.name,
     isHost: p.isHost,
@@ -108,10 +111,15 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
                 const showFeedback = game.mode === 'beginner' && showResults && isSelected;
                 
                 // Only allow selection if:
-                // 1. This tab represents the current user (not someone else's tab)
+                // 1. This is the current user's tab
                 // 2. The current user is not a host
-                // 3. The current player hasn't made a guess for this round already
-                const canMakeGuess = isCurrentPlayerTab && !isHost && !isSelected && !isPlayerHost;
+                // 3. The player has not already made a guess for this round
+                const canMakeGuess = (
+                  currentPlayer && 
+                  currentPlayer.id === player.id && 
+                  !isSelected && 
+                  !currentPlayer.isHost
+                );
                 
                 let feedbackClass = '';
                 if (showFeedback) {
