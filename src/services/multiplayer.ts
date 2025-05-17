@@ -1,64 +1,10 @@
+
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Game, SyncEvent } from '../types/game';
-
-// Generate a device ID and store it in local storage
-export const getDeviceId = (): string => {
-  let deviceId = localStorage.getItem('deviceId');
-  if (!deviceId) {
-    deviceId = uuidv4();
-    localStorage.setItem('deviceId', deviceId);
-  }
-  return deviceId;
-};
-
-// Store game session in local storage
-export const storeGameSession = (game: Game | null): void => {
-  if (game) {
-    localStorage.setItem('gameSession', JSON.stringify(game));
-    console.log(`Game session stored in localStorage: ${game.id}, with ${game.players.length} players`);
-    
-    // Also store the session code separately for easier recovery
-    if (game.sessionCode) {
-      localStorage.setItem('lastActiveSession', game.sessionCode);
-    }
-  } else {
-    localStorage.removeItem('gameSession');
-    console.log('Game session removed from localStorage');
-  }
-};
-
-// Get stored game session from local storage
-export const getStoredGameSession = (): Game | null => {
-  const storedGame = localStorage.getItem('gameSession');
-  if (storedGame) {
-    console.log('Found stored game session in localStorage');
-    return JSON.parse(storedGame);
-  }
-  console.log('No stored game session found in localStorage');
-  return null;
-};
-
-// Generate a session code for joining games
-export const generateSessionCode = async (): Promise<string> => {
-  // Use the Supabase function to generate a session code
-  const { data, error } = await supabase.rpc('generate_session_code');
-  
-  if (error) {
-    console.error('Error generating session code:', error);
-    // Fallback to client-side generation with timestamp to ensure uniqueness
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let result = '';
-    for (let i = 0; i < 6; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    // Add timestamp to ensure uniqueness
-    const timestamp = Date.now().toString(36).substring(4, 8);
-    return result.substring(0, 4) + timestamp;
-  }
-  
-  return data;
-};
+import { getDeviceId } from './deviceUtils';
+import { storeGameSession, getStoredGameSession } from './gameStorage';
+import { generateSessionCode } from './sessionUtils';
 
 class Multiplayer {
   // Event listeners for sync events

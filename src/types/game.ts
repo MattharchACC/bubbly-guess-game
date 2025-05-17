@@ -1,4 +1,3 @@
-
 export type GameMode = 'pro' | 'beginner';
 
 export interface Drink {
@@ -59,16 +58,16 @@ export interface GameSession {
   lastUpdatedAt: number;
 }
 
-// Properly export the SyncEvent enum - making sure it's available to any file that imports it
+// Properly export the SyncEvent enum
 export enum SyncEvent {
   JOIN_GAME = 'join_game',
   PLAYER_JOINED = 'player_joined',
   PLAYER_LEFT = 'player_left',
-  GAME_STARTED = 'game_started', // Event for game start
+  GAME_STARTED = 'game_started',
   ROUND_STARTED = 'round_started',
   VOTE_SUBMITTED = 'vote_submitted',
   ROUND_ENDED = 'round_ended',
   GAME_COMPLETED = 'game_completed',
-  PLAYER_ASSIGNED = 'player_assigned', // New event for player assignment
-  GAME_STATE_UPDATED = 'game_state_updated', // New event for full game state updates
+  PLAYER_ASSIGNED = 'player_assigned',
+  GAME_STATE_UPDATED = 'game_state_updated',
 }
