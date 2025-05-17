@@ -423,6 +423,8 @@ class Multiplayer {
 
   // Submit a vote/guess
   submitVote(gameId: string, playerId: string, roundId: string, drinkId: string): void {
+    console.log(`Submitting vote for player ${playerId}, round ${roundId}, drink ${drinkId}`);
+    
     // Submit to Supabase
     supabase
       .from('guesses')
@@ -436,6 +438,8 @@ class Multiplayer {
           console.error('Error submitting vote:', error);
           return;
         }
+        
+        console.log('Vote submitted successfully to Supabase');
         
         // Only broadcast the vote if successful
         this.emit(SyncEvent.VOTE_SUBMITTED, {

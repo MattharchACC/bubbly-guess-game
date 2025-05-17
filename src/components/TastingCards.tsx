@@ -102,7 +102,9 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
                 const isSelected = player.guesses[currentRound.id] === drink.id;
                 const isCorrect = drink.id === currentRound.correctDrinkId;
                 const showFeedback = game.mode === 'beginner' && showResults && isSelected;
-                const canMakeGuess = !player.isHost && (!isSelected || !currentPlayer);
+                
+                // FIX: Allow players to make guesses for their own card, regardless if currentPlayer is set
+                const canMakeGuess = !player.isHost && isCurrentUserPlayer && !isSelected;
                 
                 let feedbackClass = '';
                 if (showFeedback) {

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -39,13 +38,19 @@ const GameRound: React.FC = () => {
   const isLastRound = game.currentRound === game.rounds.length - 1;
   
   const handleSelect = (playerId: string, drinkId: string) => {
-    // Allow selection for any player that isn't the host
-    if (!isHost) {
+    // Fix: Allow proper selection for players
+    if (currentPlayer && playerId === currentPlayer.id) {
       submitGuess(playerId, currentRound.id, drinkId);
-    } else {
+    } else if (isHost) {
       toast({
         title: "Cannot make selection",
         description: "Host is not allowed to make guesses",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Cannot make selection",
+        description: "You can only make guesses for your assigned player",
         variant: "destructive"
       });
     }
@@ -98,7 +103,7 @@ const GameRound: React.FC = () => {
   };
 
   const allPlayersGuessed = game.players.every(
-    player => Object.keys(player.guesses).includes(currentRound.id)
+    player => player.isHost || Object.keys(player.guesses).includes(currentRound.id)
   );
   
   // Allow interactions for non-host players
