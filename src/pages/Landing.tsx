@@ -8,6 +8,7 @@ import { multiplayer } from '@/services/multiplayer';
 import { v4 as uuidv4 } from 'uuid';
 import { Game } from '@/types/game';
 import { toast } from "sonner";
+import { generateSessionCode } from '@/services/sessionUtils';
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ const Landing = () => {
       const gameId = uuidv4();
       
       // Get a new unique session code from the backend
-      const sessionCode = await multiplayer.generateSessionCode();
+      const sessionCode = await generateSessionCode();
       
       // Force new device ID for each new game session to prevent host confusion
       const deviceId = uuidv4();

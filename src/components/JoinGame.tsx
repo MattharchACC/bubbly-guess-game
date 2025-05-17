@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -15,7 +16,12 @@ const formSchema = z.object({
   playerName: z.string().min(2, { message: "Name must be at least 2 characters." }).max(20, { message: "Name cannot be longer than 20 characters." })
 });
 
-const JoinGame: React.FC = () => {
+interface JoinGameProps {
+  onJoining?: () => void;
+  onJoinError?: (error: string) => void;
+}
+
+const JoinGame: React.FC<JoinGameProps> = ({ onJoining, onJoinError }) => {
   const [isJoining, setIsJoining] = useState(false);
   const [sessionCode, setSessionCode] = useState('');
   const navigate = useNavigate();
@@ -47,6 +53,8 @@ const JoinGame: React.FC = () => {
     }
     
     setIsJoining(true);
+    // Call the onJoining callback if provided
+    if (onJoining) onJoining();
     
     try {
       console.log(`Joining game with session code: ${sessionCode}, player name: ${values.playerName}`);
@@ -73,12 +81,19 @@ const JoinGame: React.FC = () => {
         // Navigate to the game page
         navigate(`/play/${sessionCode}`);
       } else {
+        // Call the onJoinError callback if provided and there's an error
+        if (onJoinError) onJoinError(result.error || "Unknown error");
+
         toast.error("Failed to join game", {
           description: result.error || "Please check the session code and try again."
         });
       }
     } catch (error) {
       console.error("Error joining game:", error);
+      
+      // Call the onJoinError callback if provided
+      if (onJoinError && error instanceof Error) onJoinError(error.message);
+
       toast.error("Failed to join game", {
         description: "An error occurred while trying to join the game."
       });
