@@ -9,6 +9,7 @@ import { GameProvider } from "./contexts/GameContext";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Join from "./pages/Join";
+import Landing from "./pages/Landing";
 
 const queryClient = new QueryClient();
 
@@ -31,11 +32,6 @@ const JoinRedirect = () => {
   return null;
 };
 
-// Create a Play page component that renders the Index component
-const Play = () => {
-  return <Index />;
-};
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <GameProvider>
@@ -44,9 +40,10 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<><Index /><JoinRedirect /></>} />
+            <Route path="/" element={<Landing />} />
+            <Route path="/game" element={<><Index /><JoinRedirect /></>} />
             <Route path="/join" element={<Join />} />
-            <Route path="/play/:sessionCode" element={<Play />} />
+            <Route path="/play/:sessionCode" element={<><Index /><JoinRedirect /></>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
