@@ -1,8 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Check, ArrowRight, Wine, X, Share2, Users, StopCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import RoundTimer from '@/components/RoundTimer';
@@ -17,8 +17,7 @@ const GameRound: React.FC = () => {
     endGame, 
     isHost, 
     currentPlayer, 
-    shareableLink,
-    canPlayerGuess 
+    shareableLink
   } = useGame();
   const [selectedTab, setSelectedTab] = useState<string>('');
   const [showResults, setShowResults] = useState<boolean>(false);
@@ -38,18 +37,51 @@ const GameRound: React.FC = () => {
   const isLastRound = game.currentRound === game.rounds.length - 1;
   
   const handleSelect = (playerId: string, drinkId: string) => {
-    // Simplified selection logic - allow any non-host to make selections
-    // We're trusting the TastingCards component to enforce that players can only select their own card
-    if (game && currentRound) {
-      console.log(`Submitting guess for player ${playerId} and drink ${drinkId}`);
-      submitGuess(playerId, currentRound.id, drinkId);
-    } else {
+    // Log detailed information for debugging
+    console.log('handleSelect called with:', { 
+      playerId, 
+      drinkId, 
+      currentPlayer: currentPlayer?.id,
+      isHost,
+      game: game?.id 
+    });
+    
+    // Make sure game and round exist
+    if (!game || !currentRound) {
       toast({
         title: "Cannot make selection",
         description: "Error processing your selection. Please try again.",
         variant: "destructive"
       });
+      return;
     }
+    
+    // Check if the player exists in the game
+    const playerExists = game.players.some(p => p.id === playerId);
+    if (!playerExists) {
+      console.error(`Player ${playerId} not found in game players:`, game.players.map(p => p.id));
+      toast({
+        title: "Cannot submit guess",
+        description: "Player not found in this game",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Check if the current user is allowed to make this selection
+    // For now, we allow any non-host user to make selections
+    if (isHost) {
+      toast({
+        title: "Cannot submit guess",
+        description: "Host is not allowed to make guesses",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Submit the guess
+    console.log(`Submitting guess for player ${playerId} and drink ${drinkId}`);
+    submitGuess(playerId, currentRound.id, drinkId);
   };
   
   const handleShare = async () => {
@@ -101,9 +133,6 @@ const GameRound: React.FC = () => {
   const allPlayersGuessed = game.players.every(
     player => player.isHost || Object.keys(player.guesses).includes(currentRound.id)
   );
-  
-  // Allow interactions for non-host players
-  const canInteract = !isHost;
 
   return (
     <div className="container mx-auto max-w-3xl animate-fade-in px-3">

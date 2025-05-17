@@ -682,6 +682,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const playerExists = game.players.some(p => p.id === playerId);
     if (!playerExists) {
       console.error("Player does not exist in game:", playerId);
+      console.error("Available players:", game.players.map(p => ({ id: p.id, name: p.name })));
       toast({
         title: "Cannot submit guess",
         description: "Player not found in this game",
@@ -690,8 +691,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     
-    // Simpler validation - allow non-host players to submit guesses
+    // Find the player object
     const player = game.players.find(p => p.id === playerId);
+    
+    // Don't allow hosts to submit guesses
     if (player?.isHost) {
       console.error("Hosts cannot submit guesses:", playerId);
       toast({
@@ -702,6 +705,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     
+    // For any non-host player, allow submission
     multiplayer.submitVote(game.id, playerId, roundId, drinkId);
     
     // Update local state immediately for better UX

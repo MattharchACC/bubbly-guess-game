@@ -49,6 +49,13 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
       </div>
     );
   }
+
+  console.log('TastingCards - Visible players:', visiblePlayers.map(p => ({
+    id: p.id,
+    name: p.name,
+    isHost: p.isHost,
+    hasGuessed: !!p.guesses[currentRound.id]
+  })));
   
   return (
     <Tabs value={selectedTab} onValueChange={setSelectedTab}>
@@ -77,22 +84,22 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
       </TabsList>
       
       {visiblePlayers.map(player => {
-        const isCurrentUserPlayer = currentPlayer && currentPlayer.id === player.id;
         const isPlayerHost = player.isHost;
+        const isSelected = !!player.guesses[currentRound.id];
         
         return (
           <TabsContent key={player.id} value={player.id} className="animate-fade-in">
             <div className="text-center mb-4">
               <h3 className="text-lg font-medium">
-                {isCurrentUserPlayer ? 'Your Selection' : `${player.name}'s Selection`}
+                {player.name}'s Selection
                 {isPlayerHost && ' (Host)'}
               </h3>
               <p className="text-sm text-muted-foreground">
-                {isCurrentUserPlayer
-                  ? 'Select which drink you think this is'
-                  : isPlayerHost
-                    ? 'Host is not allowed to make guesses'
-                    : `View ${player.name}'s selections`
+                {isPlayerHost
+                  ? 'Host is not allowed to make guesses'
+                  : isSelected
+                    ? 'Selection has been made'
+                    : 'Select which drink you think this is'
                 }
               </p>
             </div>
@@ -103,9 +110,9 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
                 const isCorrect = drink.id === currentRound.correctDrinkId;
                 const showFeedback = game.mode === 'beginner' && showResults && isSelected;
                 
-                // Fixed: Allow non-host players to make selections for their card 
-                // Simplified the condition to just check if the player is not a host
-                const canMakeGuess = !player.isHost && !isSelected;
+                // Allow selection only if player is not host and hasn't made a selection yet
+                // Important: Non-host players can make selections
+                const canMakeGuess = !isPlayerHost && !isSelected;
                 
                 let feedbackClass = '';
                 if (showFeedback) {
@@ -113,6 +120,13 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
                     ? 'ring-2 ring-green-500 bg-green-50' 
                     : 'ring-2 ring-red-500 bg-red-50';
                 }
+                
+                const handleDrinkSelect = () => {
+                  if (canMakeGuess) {
+                    console.log(`Attempting to select drink ${drink.name} for player ${player.id}`);
+                    onSelect(player.id, drink.id);
+                  }
+                };
                 
                 return (
                   <button
@@ -122,7 +136,7 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
                         ? `border-secondary bg-secondary/10 ${feedbackClass}` 
                         : 'border-border hover:border-muted-foreground'
                     } mb-3 ${!canMakeGuess ? 'opacity-70 cursor-not-allowed' : ''}`}
-                    onClick={() => canMakeGuess && onSelect(player.id, drink.id)}
+                    onClick={handleDrinkSelect}
                     disabled={!canMakeGuess}
                   >
                     <div className="flex items-center">
