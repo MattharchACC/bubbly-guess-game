@@ -1,4 +1,3 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Game, SyncEvent } from '../types/game';
@@ -500,3 +499,5 @@ class Multiplayer {
 }
 
 export const multiplayer = new Multiplayer();
+
+export { multiplayer, generateSessionCode, getDeviceId, storeGameSession, getStoredGameSession };

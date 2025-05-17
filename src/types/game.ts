@@ -59,7 +59,7 @@ export interface GameSession {
   lastUpdatedAt: number;
 }
 
-// Enum for synchronization events between devices
+// Properly export the SyncEvent enum - making sure it's available to any file that imports it
 export enum SyncEvent {
   JOIN_GAME = 'join_game',
   PLAYER_JOINED = 'player_joined',

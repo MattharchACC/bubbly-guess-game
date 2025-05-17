@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
@@ -11,10 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { toast } from "sonner";
-import { SyncEvent, multiplayer } from '@/services/multiplayer';
+import { SyncEvent } from '@/types/game';
+import { multiplayer } from '@/services/multiplayer';
 
 const GameContainer: React.FC = () => {
-  const { game, isHost, currentPlayer, joinGame, updatePlayer } = useGame();
+  const { game, isHost, currentPlayer, joinGame } = useGame();
   const location = useLocation();
   const navigate = useNavigate();
   const { toast: uiToast } = useToast();
