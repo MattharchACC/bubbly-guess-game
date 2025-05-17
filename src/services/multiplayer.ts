@@ -498,6 +498,5 @@ class Multiplayer {
   }
 }
 
+// Export a single instance of the Multiplayer class
 export const multiplayer = new Multiplayer();
-
-export { multiplayer, generateSessionCode, getDeviceId, storeGameSession, getStoredGameSession };
