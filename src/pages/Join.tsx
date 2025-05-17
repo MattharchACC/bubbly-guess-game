@@ -14,6 +14,13 @@ const Join = () => {
   useEffect(() => {
     if (game && currentPlayer) {
       console.log("User has successfully joined the game, redirecting to main page");
+      console.log("Join page - Current player data:", {
+        id: currentPlayer.id,
+        name: currentPlayer.name,
+        isHost: currentPlayer.isHost,
+        deviceId: currentPlayer.deviceId
+      });
+      // Use replace to avoid browser history issues
       navigate('/', { replace: true });
     }
   }, [game, currentPlayer, navigate]);
