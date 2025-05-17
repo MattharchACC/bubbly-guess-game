@@ -3,42 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, ArrowRight, Wine, X, Share2, Users, StopCircle } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Check, ArrowRight, Wine, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import RoundTimer from '@/components/RoundTimer';
-import TastingCards from '@/components/TastingCards';
 
 const GameRound: React.FC = () => {
-  const { 
-    game, 
-    submitGuess, 
-    advanceRound, 
-    completeGame, 
-    endGame, 
-    isHost, 
-    currentPlayer, 
-    shareableLink
-  } = useGame();
+  const { game, submitGuess, advanceRound, completeGame } = useGame();
+  const [selectedTab, setSelectedTab] = useState<string>(game?.players[0]?.id || '');
+  const [isDrinkSelected, setIsDrinkSelected] = useState<Record<string, boolean>>({});
   const [showResults, setShowResults] = useState<boolean>(false);
-  
-  useEffect(() => {
-    // Reset results when advancing to new round
-    setShowResults(false);
-  }, [game?.currentRound]);
-  
-  // Log current player status whenever it changes
-  useEffect(() => {
-    if (currentPlayer) {
-      console.log("GameRound - Current player updated:", {
-        id: currentPlayer.id,
-        name: currentPlayer.name,
-        isHost: currentPlayer.isHost,
-        deviceId: currentPlayer.deviceId
-      });
-    } else {
-      console.log("GameRound - No current player identified");
-    }
-  }, [currentPlayer]);
 
   if (!game || game.currentRound < 0) return null;
 
@@ -46,85 +19,8 @@ const GameRound: React.FC = () => {
   const isLastRound = game.currentRound === game.rounds.length - 1;
   
   const handleSelect = (playerId: string, drinkId: string) => {
-    // Enhanced logging for debugging
-    console.log('handleSelect called with:', { 
-      playerId, 
-      drinkId, 
-      currentPlayerId: currentPlayer?.id,
-      isPlayerMatchingCurrent: currentPlayer?.id === playerId,
-      isHost,
-      currentPlayerIsHost: currentPlayer?.isHost
-    });
-    
-    // Make sure the player exists in the game
-    const playerInGame = game.players.find(p => p.id === playerId);
-    if (!playerInGame) {
-      console.error(`Player ${playerId} not found in game players:`, game.players.map(p => ({ id: p.id, name: p.name })));
-      toast({
-        title: "Cannot submit guess",
-        description: "Player not found in this game",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Make sure the user is submitting for themselves and not someone else
-    if (!currentPlayer || currentPlayer.id !== playerId) {
-      console.error(`Cannot submit guess: Current player (${currentPlayer?.id}) does not match selected player (${playerId})`);
-      toast({
-        title: "Cannot submit guess",
-        description: "You can only make selections for yourself",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Hosts should not be able to submit guesses
-    if (currentPlayer.isHost) {
-      console.error("Host attempted to submit a guess");
-      toast({
-        title: "Cannot submit guess",
-        description: "Hosts are not allowed to make guesses",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Make sure game and round exist
-    if (!game || !currentRound) {
-      toast({
-        title: "Cannot make selection",
-        description: "Error processing your selection. Please try again.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Submit the guess
-    console.log(`Submitting guess for player ${playerId} (${currentPlayer.name}) and drink ${drinkId}`);
     submitGuess(playerId, currentRound.id, drinkId);
-  };
-  
-  const handleShare = async () => {
-    if (shareableLink) {
-      try {
-        if (navigator.share) {
-          await navigator.share({
-            title: `Join ${game.name}`,
-            text: `Join my Bubbly blind tasting game!`,
-            url: shareableLink
-          });
-        } else {
-          navigator.clipboard.writeText(shareableLink);
-          toast({
-            title: "Link copied",
-            description: "Game link copied to clipboard"
-          });
-        }
-      } catch (error) {
-        console.error("Error sharing:", error);
-      }
-    }
+    setIsDrinkSelected({...isDrinkSelected, [playerId]: true});
   };
 
   const handleRevealResults = () => {
@@ -142,6 +38,7 @@ const GameRound: React.FC = () => {
 
   const handleNext = () => {
     // Reset states for the next round
+    setIsDrinkSelected({});
     setShowResults(false);
     
     if (isLastRound) {
@@ -152,69 +49,112 @@ const GameRound: React.FC = () => {
   };
 
   const allPlayersGuessed = game.players.every(
-    player => player.isHost || Object.keys(player.guesses).includes(currentRound.id)
+    player => Object.keys(player.guesses).includes(currentRound.id)
   );
+
+  const renderDrinkOption = (drink, player) => {
+    const isSelected = player.guesses[currentRound.id] === drink.id;
+    const isCorrect = drink.id === currentRound.correctDrinkId;
+    const showFeedback = game.mode === 'beginner' && showResults && isSelected;
+    
+    let feedbackClass = '';
+    if (showFeedback) {
+      feedbackClass = isCorrect 
+        ? 'ring-2 ring-green-500 bg-green-50' 
+        : 'ring-2 ring-red-500 bg-red-50';
+    }
+
+    return (
+      <button
+        key={drink.id}
+        className={`p-4 rounded-xl border transition-all ${
+          isSelected 
+            ? `border-secondary bg-secondary/10 ${feedbackClass}` 
+            : 'border-border hover:border-muted-foreground'
+        } mb-3`}
+        onClick={() => handleSelect(player.id, drink.id)}
+        disabled={!!player.guesses[currentRound.id]}
+      >
+        <div className="flex items-center">
+          <div className="mr-3 rounded-full bg-muted/50 p-2">
+            <Wine className="h-5 w-5" />
+          </div>
+          <div className="text-left">
+            <div className="font-medium">{drink.name}</div>
+            {drink.description && (
+              <div className="text-sm text-muted-foreground">{drink.description}</div>
+            )}
+          </div>
+          {isSelected && (
+            <>
+              {showFeedback ? (
+                isCorrect ? (
+                  <Check className="ml-auto h-5 w-5 text-green-500" />
+                ) : (
+                  <X className="ml-auto h-5 w-5 text-red-500" />
+                )
+              ) : (
+                <Check className="ml-auto h-5 w-5 text-secondary" />
+              )}
+            </>
+          )}
+        </div>
+      </button>
+    );
+  };
 
   return (
     <div className="container mx-auto max-w-3xl animate-fade-in px-3">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="heading-lg">{game?.name}</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="heading-lg">{game.name}</h1>
         <div className="text-sm font-medium text-muted-foreground">
-          {game?.mode === 'pro' ? 'Pro Mode' : 'Beginner Mode'}
+          {game.mode === 'pro' ? 'Pro Mode' : 'Beginner Mode'}
         </div>
       </div>
       
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-muted-foreground" />
-          <span className="text-sm">{game?.players.length} Players</span>
-        </div>
-        
-        {shareableLink && (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleShare}
-            className="rounded-full"
-          >
-            <Share2 className="h-4 w-4 mr-1" />
-            Invite
-          </Button>
-        )}
-      </div>
-      
-      <div className="bg-muted/30 p-4 rounded-2xl mb-4 text-center">
-        <h2 className="heading-md">{game && game.currentRound >= 0 ? game.rounds[game.currentRound].name : ''}</h2>
+      <div className="bg-muted/30 p-4 rounded-2xl mb-6 text-center">
+        <h2 className="heading-md">{currentRound.name}</h2>
         <p className="text-muted-foreground">
-          Round {game && game.currentRound >= 0 ? game.currentRound + 1 : 0} of {game?.rounds.length}
+          Round {game.currentRound + 1} of {game.rounds.length}
         </p>
       </div>
-      
-      <RoundTimer />
       
       <Card className="mb-8 shadow-sm border border-gray-200 rounded-2xl overflow-hidden">
         <CardHeader>
           <CardTitle className="text-xl">Tasting Cards</CardTitle>
         </CardHeader>
         <CardContent>
-          <TastingCards 
-            showResults={showResults} 
-            onSelect={handleSelect} 
-          />
+          <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+            <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 mb-4 rounded-xl overflow-hidden bg-gray-100">
+              {game.players.map(player => (
+                <TabsTrigger 
+                  key={player.id} 
+                  value={player.id}
+                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
+                >
+                  {player.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            
+            {game.players.map(player => (
+              <TabsContent key={player.id} value={player.id} className="animate-fade-in">
+                <div className="text-center mb-4">
+                  <h3 className="text-lg font-medium">{player.name}'s Selection</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Select which drink you think this is
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-3">
+                  {game.drinks.map(drink => renderDrinkOption(drink, player))}
+                </div>
+              </TabsContent>
+            ))}
+          </Tabs>
         </CardContent>
         <CardFooter className="flex justify-end gap-2 border-t p-4">
-          {isHost && (
-            <Button 
-              onClick={endGame} 
-              variant="destructive"
-              className="rounded-full text-sm mr-auto"
-            >
-              <StopCircle className="h-4 w-4 mr-1" />
-              End Game
-            </Button>
-          )}
-
-          {allPlayersGuessed && game?.mode === 'beginner' && !showResults && isHost && (
+          {allPlayersGuessed && game.mode === 'beginner' && !showResults && (
             <Button 
               onClick={handleRevealResults}
               variant="outline"
@@ -224,27 +164,23 @@ const GameRound: React.FC = () => {
             </Button>
           )}
           
-          {isHost && (
-            <Button 
-              onClick={handleNext} 
-              disabled={!allPlayersGuessed || (game?.mode === 'beginner' && !showResults)}
-              className="btn-primary text-sm"
-            >
-              {game && game.currentRound === game.rounds.length - 1 ? 'Finish Game' : 'Next Round'}
-              <ArrowRight className="ml-auto h-4 w-4" />
-            </Button>
-          )}
+          <Button 
+            onClick={handleNext} 
+            disabled={!allPlayersGuessed || (game.mode === 'beginner' && !showResults)}
+            className="btn-primary text-sm"
+          >
+            {isLastRound ? 'Finish Game' : 'Next Round'}
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
         </CardFooter>
       </Card>
       
       <div className="text-center text-sm text-muted-foreground mb-8">
         {!allPlayersGuessed 
           ? 'Waiting for all players to make their selections...'
-          : game?.mode === 'beginner' && !showResults && isHost
+          : game.mode === 'beginner' && !showResults
             ? 'All players have made their selections. Ready to reveal results!'
-            : isHost 
-              ? 'Ready to continue to the next round.'
-              : 'Waiting for host to advance the game...'}
+            : 'Ready to continue to the next round.'}
       </div>
     </div>
   );

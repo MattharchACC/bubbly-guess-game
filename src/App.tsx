@@ -3,34 +3,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
-import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { GameProvider } from "./contexts/GameContext";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import Join from "./pages/Join";
-import Landing from "./pages/Landing";
 
 const queryClient = new QueryClient();
-
-// Component to handle join parameter in URL with improved handling
-const JoinRedirect = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const joinCode = params.get('join');
-    
-    if (joinCode) {
-      console.log("Join code detected in main app, redirecting to join page:", joinCode);
-      // Use replace to avoid browser history issues
-      navigate(`/join?join=${joinCode}`, { replace: true });
-    }
-  }, [location, navigate]);
-  
-  return null;
-};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -40,16 +18,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* Landing page is the root - starting point for creating new games */}
-            <Route path="/" element={<Landing />} />
-            
-            {/* Join page for players to join existing games */}
-            <Route path="/join" element={<Join />} />
-            
-            {/* Each game has its own unique URL based on session code */}
-            <Route path="/play/:sessionCode" element={<><Index /><JoinRedirect /></>} />
-            
-            {/* Catch all other routes */}
+            <Route path="/" element={<Index />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

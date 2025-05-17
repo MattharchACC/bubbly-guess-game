@@ -11,7 +11,7 @@ const Index = () => {
             <div className="bg-primary p-1.5 rounded-md">
               <Wine className="h-5 w-5 text-white" />
             </div>
-            <h1 className="text-xl font-medium">Prosecco Tasting Challenge</h1>
+            <h1 className="text-xl font-medium">Bubbly</h1>
           </div>
           <div className="ml-auto text-sm text-muted-foreground">Blind Tasting Game</div>
         </div>
