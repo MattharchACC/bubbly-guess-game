@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { multiplayer, generateSessionCode } from '@/services/multiplayer';
 import { v4 as uuidv4 } from 'uuid';
-import { Game, GameMode } from '@/types/game';
+import { Game } from '@/types/game';
 import { toast } from "sonner";
 
 const Landing = () => {
@@ -31,7 +31,7 @@ const Landing = () => {
       const initialGame: Game = {
         id: gameId,
         name: 'Prosecco Tasting Challenge',
-        mode: 'beginner' as GameMode,
+        mode: 'pro', // Only using pro mode now
         hostId: gameId, // Use game ID as host ID initially
         sessionCode,
         isComplete: false,
@@ -169,7 +169,7 @@ const Landing = () => {
               </li>
               <li className="flex items-start gap-3">
                 <span className="bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">4</span>
-                <span>Start the game and guide players through each tasting round</span>
+                <span>Start the game when at least two players have joined</span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">5</span>

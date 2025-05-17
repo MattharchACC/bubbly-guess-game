@@ -1,10 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Drink, GameMode, DrinkAssignment } from '@/types/game';
 import { Plus, Trash2, Wine, ArrowDown, ArrowUp, Clock } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,7 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 const GameSetup: React.FC = () => {
   const { setUpGame } = useGame();
   const [gameName, setGameName] = useState<string>('Prosecco Tasting Challenge');
-  const [gameMode, setGameMode] = useState<GameMode>('beginner');
+  const [gameMode] = useState<GameMode>('pro'); // Fixed to pro mode only
   const [roundCount, setRoundCount] = useState<number>(6);
   const [enableTimeLimit, setEnableTimeLimit] = useState<boolean>(true);
   const [roundTimeLimit, setRoundTimeLimit] = useState<number>(60); // Default 60 seconds
@@ -178,22 +176,11 @@ const GameSetup: React.FC = () => {
               />
             </div>
 
+            {/* Game mode section removed since we only use Pro mode now */}
             <div className="space-y-3">
-              <Label>Game Mode</Label>
-              <RadioGroup value={gameMode} onValueChange={(value) => setGameMode(value as GameMode)} className="flex space-x-4">
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="beginner" id="beginner" />
-                  <Label htmlFor="beginner" className="cursor-pointer">Beginner Mode</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="pro" id="pro" />
-                  <Label htmlFor="pro" className="cursor-pointer">Pro Mode</Label>
-                </div>
-              </RadioGroup>
+              <Label>Game Mode: Professional</Label>
               <p className="text-sm text-muted-foreground">
-                {gameMode === 'beginner' 
-                  ? 'Players receive immediate feedback after each round.' 
-                  : 'Results are hidden until the end of the game.'}
+                Results are hidden until the end of the game.
               </p>
             </div>
 

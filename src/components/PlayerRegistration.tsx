@@ -4,149 +4,155 @@ import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { UserPlus, Users, Play, Share2, LinkIcon, Copy } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { Copy, Link, Users, AlertTriangle } from 'lucide-react';
+import { toast } from "sonner";
+import QRCode from 'react-qr-code';
 
 const PlayerRegistration: React.FC = () => {
-  const { game, addPlayer, startGame, shareableLink, isHost } = useGame();
-  const [playerName, setPlayerName] = useState<string>('');
-  const [copied, setCopied] = useState<boolean>(false);
+  const { game, addPlayer, startGame, isHost, shareableLink } = useGame();
+  const [newPlayerName, setNewPlayerName] = useState<string>('');
+  const [copySuccess, setCopySuccess] = useState<boolean>(false);
+  const [canStart, setCanStart] = useState<boolean>(false);
 
-  if (!game) return null;
+  // Check if we have enough players to start
+  useEffect(() => {
+    if (game) {
+      // We need at least 2 non-host players to start
+      const nonHostPlayers = game.players.filter(p => !p.isHost);
+      setCanStart(nonHostPlayers.length >= 2);
+    }
+  }, [game]);
 
   const handleAddPlayer = (e: React.FormEvent) => {
     e.preventDefault();
-    if (playerName.trim()) {
-      addPlayer(playerName.trim());
-      setPlayerName('');
-    }
+    if (!newPlayerName.trim()) return;
+    
+    addPlayer(newPlayerName.trim());
+    setNewPlayerName('');
   };
-  
+
   const handleCopyLink = () => {
-    if (shareableLink) {
-      navigator.clipboard.writeText(shareableLink);
-      setCopied(true);
-      toast({
-        title: "Link copied",
-        description: "Share this link with players to join the game"
-      });
-      
-      setTimeout(() => setCopied(false), 3000);
-    }
+    navigator.clipboard.writeText(shareableLink);
+    setCopySuccess(true);
+    toast.success("Link copied to clipboard");
+    
+    setTimeout(() => {
+      setCopySuccess(false);
+    }, 2000);
   };
-  
-  const handleShare = async () => {
-    if (shareableLink) {
-      try {
-        if (navigator.share) {
-          await navigator.share({
-            title: `Join ${game.name}`,
-            text: `Join my Bubbly blind tasting game!`,
-            url: shareableLink
-          });
-        } else {
-          handleCopyLink();
-        }
-      } catch (error) {
-        console.error("Error sharing:", error);
-      }
-    }
-  };
+
+  if (!game) return null;
+
+  const nonHostPlayers = game.players.filter(p => !p.isHost);
 
   return (
-    <div className="container mx-auto max-w-3xl animate-fade-in">
-      <Card className="mt-8">
+    <div className="container mx-auto py-8 px-4">
+      <Card className="max-w-xl mx-auto">
         <CardHeader>
-          <CardTitle className="heading-lg">Add Players</CardTitle>
+          <CardTitle className="text-2xl">
+            {isHost ? 'Waiting for Players' : 'Waiting for Host to Start'}
+          </CardTitle>
           <CardDescription>
-            Add everyone who will be participating in "{game.name}"
+            {isHost ? 'Share the link with players to join the game' : 'The host will start the game soon'}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        
+        <CardContent className="space-y-6">
           {isHost && (
-            <form onSubmit={handleAddPlayer} className="flex space-x-2 mb-6">
-              <Input
-                placeholder="Enter player name"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                className="rounded-xl"
-              />
-              <Button type="submit" className="btn-outline whitespace-nowrap">
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add Player
-              </Button>
-            </form>
-          )}
-
-          <div className="space-y-4">
-            <Label className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Players ({game.players.length})
-            </Label>
-            
-            {game.players.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {game.players.map((player) => (
-                  <div key={player.id} className="p-3 border rounded-xl flex items-center">
-                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center mr-3">
-                      {player.name.charAt(0).toUpperCase()}
-                    </div>
-                    <span>
-                      {player.name} 
-                      {player.isHost && <span className="ml-2 text-xs text-muted-foreground">(Host)</span>}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-center py-6 text-muted-foreground">
-                No players added yet. Add players to begin the game.
-              </p>
-            )}
-            
-            {isHost && shareableLink && (
-              <div className="mt-6 space-y-3">
-                <Label>Invite Players</Label>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-muted p-3 rounded-lg text-sm truncate">
-                    {shareableLink}
-                  </div>
-                  <Button onClick={handleCopyLink} variant="outline" className="rounded-full" size="icon">
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button onClick={handleShare} variant="outline" className="rounded-full" size="icon">
-                    <Share2 className="h-4 w-4" />
+            <>
+              <div className="p-4 border rounded-md bg-muted/30">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-sm font-medium">Invite Link</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleCopyLink}
+                    className="gap-1"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    {copySuccess ? 'Copied!' : 'Copy'}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Share this link or code with players to join the game from their devices
-                </p>
+                
+                <div className="p-3 bg-white rounded border flex items-center gap-2 text-sm overflow-auto">
+                  <Link className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                  <span className="whitespace-nowrap overflow-hidden text-ellipsis">{shareableLink}</span>
+                </div>
               </div>
+              
+              <div className="flex justify-center">
+                <div className="p-3 bg-white rounded-lg">
+                  <QRCode
+                    size={150}
+                    value={shareableLink}
+                    viewBox={`0 0 150 150`}
+                  />
+                </div>
+              </div>
+              
+              {!canStart && (
+                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md mt-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0" />
+                  <div>
+                    <span className="font-medium text-amber-800">Need more players</span>
+                    <p className="text-sm text-amber-700">
+                      At least 2 players must join before starting the game.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+          
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium flex items-center gap-2">
+                <Users className="h-5 w-5" /> Players
+              </h3>
+              <span className="text-sm text-muted-foreground">
+                {nonHostPlayers.length} {nonHostPlayers.length === 1 ? 'player' : 'players'} joined
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {nonHostPlayers.map(player => (
+                <div key={player.id} className="p-3 border rounded-md flex items-center justify-between">
+                  <span>{player.name}</span>
+                  <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full">
+                    Ready
+                  </span>
+                </div>
+              ))}
+            </div>
+            
+            {isHost && (
+              <form onSubmit={handleAddPlayer} className="mt-4 flex gap-2">
+                <Input
+                  placeholder="Add player manually"
+                  value={newPlayerName}
+                  onChange={(e) => setNewPlayerName(e.target.value)}
+                  className="flex-1"
+                />
+                <Button type="submit" disabled={!newPlayerName.trim()}>
+                  Add
+                </Button>
+              </form>
             )}
           </div>
         </CardContent>
-        <CardFooter className="flex justify-end">
-          {isHost && (
+        
+        {isHost && (
+          <CardFooter>
             <Button 
-              onClick={startGame} 
-              disabled={game.players.length === 0}
-              className="btn-primary"
+              onClick={startGame}
+              disabled={!canStart}
+              className="w-full"
             >
-              <Play className="h-4 w-4 mr-2" />
-              Start Game
+              Start Game ({nonHostPlayers.length} {nonHostPlayers.length === 1 ? 'player' : 'players'})
             </Button>
-          )}
-        </CardFooter>
+          </CardFooter>
+        )}
       </Card>
-
-      <div className="mt-4 text-center text-sm text-muted-foreground">
-        <p>
-          {game.mode === 'beginner' 
-            ? 'In Beginner Mode, players will see if their guess was correct after each round.' 
-            : 'In Pro Mode, players will not know if their guesses were correct until the end.'}
-        </p>
-      </div>
     </div>
   );
 };
