@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Check, ArrowRight, Wine, X, Share2, Users, StopCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import RoundTimer from '@/components/RoundTimer';
+import TastingCards from '@/components/TastingCards';
 
 const GameRound: React.FC = () => {
   const { 
@@ -102,59 +103,6 @@ const GameRound: React.FC = () => {
   // Determine if the current player can interact
   const canInteract = currentPlayer !== null;
 
-  const renderDrinkOption = (drink, player) => {
-    const isCurrentUserPlayer = currentPlayer && currentPlayer.id === player.id;
-    const isSelected = player.guesses[currentRound.id] === drink.id;
-    const isCorrect = drink.id === currentRound.correctDrinkId;
-    const showFeedback = game.mode === 'beginner' && showResults && isSelected;
-    const playerCanMakeGuesses = canPlayerGuess(player.id);
-    
-    let feedbackClass = '';
-    if (showFeedback) {
-      feedbackClass = isCorrect 
-        ? 'ring-2 ring-green-500 bg-green-50' 
-        : 'ring-2 ring-red-500 bg-red-50';
-    }
-
-    return (
-      <button
-        key={drink.id}
-        className={`p-4 rounded-xl border transition-all ${
-          isSelected 
-            ? `border-secondary bg-secondary/10 ${feedbackClass}` 
-            : 'border-border hover:border-muted-foreground'
-        } mb-3 ${!playerCanMakeGuesses ? 'opacity-70' : ''}`}
-        onClick={() => isCurrentUserPlayer && !isSelected && playerCanMakeGuesses && handleSelect(player.id, drink.id)}
-        disabled={!playerCanMakeGuesses || !isCurrentUserPlayer || !!player.guesses[currentRound.id]}
-      >
-        <div className="flex items-center">
-          <div className="mr-3 rounded-full bg-muted/50 p-2">
-            <Wine className="h-5 w-5" />
-          </div>
-          <div className="text-left">
-            <div className="font-medium">{drink.name}</div>
-            {drink.description && (
-              <div className="text-sm text-muted-foreground">{drink.description}</div>
-            )}
-          </div>
-          {isSelected && (
-            <>
-              {showFeedback ? (
-                isCorrect ? (
-                  <Check className="ml-auto h-5 w-5 text-green-500" />
-                ) : (
-                  <X className="ml-auto h-5 w-5 text-red-500" />
-                )
-              ) : (
-                <Check className="ml-auto h-5 w-5 text-secondary" />
-              )}
-            </>
-          )}
-        </div>
-      </button>
-    );
-  };
-
   return (
     <div className="container mx-auto max-w-3xl animate-fade-in px-3">
       <div className="flex justify-between items-center mb-4">
@@ -197,61 +145,11 @@ const GameRound: React.FC = () => {
           <CardTitle className="text-xl">Tasting Cards</CardTitle>
         </CardHeader>
         <CardContent>
-          <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-            <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 mb-4 rounded-xl overflow-hidden bg-gray-100">
-              {game.players.map(player => {
-                const hasGuessed = !!player.guesses[currentRound.id];
-                const isCurrentPlayer = currentPlayer && currentPlayer.id === player.id;
-                const isPlayerHost = player.isHost;
-                
-                return (
-                  <TabsTrigger 
-                    key={player.id} 
-                    value={player.id}
-                    className={`
-                      data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg
-                      ${hasGuessed ? 'text-green-600' : ''}
-                      ${isPlayerHost ? 'font-medium italic' : ''}
-                      ${isCurrentPlayer ? 'font-medium' : ''}
-                    `}
-                  >
-                    {player.name}
-                    {isPlayerHost && <span className="text-xs ml-1">(Host)</span>}
-                    {hasGuessed && <Check className="h-3 w-3 ml-1" />}
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-            
-            {game.players.map(player => {
-              const isCurrentUserPlayer = currentPlayer && currentPlayer.id === player.id;
-              const isPlayerHost = player.isHost;
-              const playerCanGuess = canPlayerGuess(player.id);
-              
-              return (
-                <TabsContent key={player.id} value={player.id} className="animate-fade-in">
-                  <div className="text-center mb-4">
-                    <h3 className="text-lg font-medium">
-                      {isCurrentUserPlayer ? 'Your Selection' : `${player.name}'s Selection`}
-                      {isPlayerHost && ' (Host)'}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {isCurrentUserPlayer && playerCanGuess
-                        ? 'Select which drink you think this is' 
-                        : isCurrentUserPlayer
-                          ? 'You cannot make guesses for this player'
-                          : `View ${player.name}'s selections`
-                      }
-                    </p>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 gap-3">
-                    {game.drinks.map(drink => renderDrinkOption(drink, player))}
-                  </div>
-                </TabsContent>
-              );
-            })}
-          </Tabs>
+          {/* Only pass showResults when results should be shown */}
+          <TastingCards 
+            showResults={showResults} 
+            onSelect={handleSelect} 
+          />
         </CardContent>
         <CardFooter className="flex justify-end gap-2 border-t p-4">
           {isHost && (
