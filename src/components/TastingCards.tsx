@@ -26,7 +26,7 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
   
   const currentRound = game.rounds[game.currentRound];
   
-  // Only show the current player's card during active rounds, unless user is host
+  // Only show the current player's card during active rounds, unless user is host or viewing results
   const visiblePlayers = showResults || isHost
     ? game.players
     : game.players.filter(p => p.id === currentPlayer?.id);
