@@ -1,8 +1,15 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Game, GameMode, Player, Round, Drink, SyncEvent } from '../types/game';
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from 'uuid';
-import { multiplayer, generateSessionCode, getDeviceId, storeGameSession, getStoredGameSession } from '../services/multiplayer';
+import { 
+  multiplayer, 
+  generateSessionCode, 
+  getDeviceId, 
+  storeGameSession, 
+  getStoredGameSession 
+} from '../services/multiplayer';
 import { supabase } from '@/integrations/supabase/client';
 
 type GameContextType = {

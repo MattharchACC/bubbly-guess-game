@@ -1,4 +1,3 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Game, SyncEvent } from '../types/game';
@@ -446,3 +445,9 @@ class Multiplayer {
 
 // Export a single instance of the Multiplayer class
 export const multiplayer = new Multiplayer();
+
+// Re-export utility functions to maintain backward compatibility
+export { getDeviceId } from './deviceUtils';
+export { storeGameSession, getStoredGameSession } from './gameStorage';
+export { generateSessionCode } from './sessionUtils';
+export { SyncEvent } from '../types/game';
