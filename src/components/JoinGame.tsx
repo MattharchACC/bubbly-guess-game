@@ -14,7 +14,7 @@ const JoinGame: React.FC = () => {
   const [playerName, setPlayerName] = useState<string>('');
   const [isJoining, setIsJoining] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
-  const { joinGame } = useGame();
+  const { joinGame, game } = useGame();
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -32,6 +32,13 @@ const JoinGame: React.FC = () => {
       console.error("Error parsing URL parameters:", error);
     }
   }, [location]);
+
+  // If already in a game, redirect to main page
+  useEffect(() => {
+    if (game) {
+      navigate('/');
+    }
+  }, [game, navigate]);
   
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
