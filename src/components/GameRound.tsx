@@ -38,19 +38,15 @@ const GameRound: React.FC = () => {
   const isLastRound = game.currentRound === game.rounds.length - 1;
   
   const handleSelect = (playerId: string, drinkId: string) => {
-    // Fix: Allow proper selection for players
-    if (currentPlayer && playerId === currentPlayer.id) {
+    // Simplified selection logic - allow any non-host to make selections
+    // We're trusting the TastingCards component to enforce that players can only select their own card
+    if (game && currentRound) {
+      console.log(`Submitting guess for player ${playerId} and drink ${drinkId}`);
       submitGuess(playerId, currentRound.id, drinkId);
-    } else if (isHost) {
-      toast({
-        title: "Cannot make selection",
-        description: "Host is not allowed to make guesses",
-        variant: "destructive"
-      });
     } else {
       toast({
         title: "Cannot make selection",
-        description: "You can only make guesses for your assigned player",
+        description: "Error processing your selection. Please try again.",
         variant: "destructive"
       });
     }

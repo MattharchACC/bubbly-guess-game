@@ -32,7 +32,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [remainingTime, setRemainingTime] = useState<number | null>(null);
   const { toast } = useToast();
   
-  // Initialize from localStorage if available
+  // Initialize from localStorage if available - enhanced version
   useEffect(() => {
     const storedGame = getStoredGameSession();
     if (storedGame) {
@@ -40,12 +40,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const deviceId = getDeviceId();
       setIsHost(storedGame.hostId === deviceId);
       
+      console.log("Initializing game from local storage:", storedGame.id);
+      console.log("Current device ID:", deviceId);
+      
       // Find current player based on device ID first, then check game-specific localStorage key
       let player = storedGame.players.find(p => p.deviceId === deviceId || p.assignedToDeviceId === deviceId);
       
       // If player not found by device ID, try to find by stored player ID in localStorage
       if (!player && storedGame.sessionCode) {
         const playerId = localStorage.getItem(`player:${storedGame.sessionCode}`);
+        console.log("Looking up player by stored ID:", playerId);
+        
         if (playerId) {
           player = storedGame.players.find(p => p.id === playerId);
           // If found this way, update the device IDs for future reference
@@ -56,17 +61,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       
-      setCurrentPlayer(player || null);
+      if (player) {
+        console.log("Found player:", player.name);
+        setCurrentPlayer(player);
+      } else {
+        console.log("No player found for current device");
+      }
       
       // Log player assignments for debugging
-      console.log("Current device ID:", deviceId);
       console.log("Available players:", storedGame.players.map(p => ({
         name: p.name, 
         isHost: p.isHost,
         deviceId: p.deviceId,
         assignedToDeviceId: p.assignedToDeviceId
       })));
-      console.log("Current player set to:", player);
     }
   }, []);
   
@@ -481,7 +489,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  // Update joinGame to return the player ID
+  // Update joinGame to store player ID in localStorage
   const joinGame = async (sessionCode: string, playerName: string): Promise<{ success: boolean, error?: string, playerId?: string }> => {
     try {
       console.log(`Joining game with session code: ${sessionCode}, player name: ${playerName}`);
@@ -527,6 +535,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (foundPlayer) {
           console.log("Setting current player:", foundPlayer);
           setCurrentPlayer(foundPlayer);
+          
+          // Store player ID in localStorage with game session code as key
+          // This ensures we can recover the player after page refresh
+          localStorage.setItem(`player:${result.game.sessionCode}`, foundPlayer.id);
           
           // Update game with correct device ID assignments
           const updatedPlayers = result.game.players.map(p => 
@@ -660,15 +672,31 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  // Update submitGuess to be more permissive
   const submitGuess = (playerId: string, roundId: string, drinkId: string) => {
     if (!game) return;
     
-    // Extra validation to ensure only the rightful player can submit guesses
-    if (!canPlayerGuess(playerId)) {
-      console.error("This device cannot submit guesses for player:", playerId);
+    console.log(`Attempting to submit guess for player ${playerId}, round ${roundId}, drink ${drinkId}`);
+    
+    // Check if the player exists in the game
+    const playerExists = game.players.some(p => p.id === playerId);
+    if (!playerExists) {
+      console.error("Player does not exist in game:", playerId);
       toast({
         title: "Cannot submit guess",
-        description: "You can only submit guesses for your assigned player",
+        description: "Player not found in this game",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Simpler validation - allow non-host players to submit guesses
+    const player = game.players.find(p => p.id === playerId);
+    if (player?.isHost) {
+      console.error("Hosts cannot submit guesses:", playerId);
+      toast({
+        title: "Cannot submit guess",
+        description: "Host is not allowed to make guesses",
         variant: "destructive"
       });
       return;
@@ -694,6 +722,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     setGame(updatedGame);
     storeGameSession(updatedGame);
+    
+    toast({
+      title: "Vote submitted",
+      description: "Your selection has been recorded",
+    });
   };
 
   const advanceRound = () => {
