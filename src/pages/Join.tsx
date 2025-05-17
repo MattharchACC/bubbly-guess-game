@@ -1,20 +1,16 @@
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Wine } from 'lucide-react';
 import JoinGame from '@/components/JoinGame';
 import { useGame } from '@/contexts/GameContext';
-import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 const Join = () => {
   const { game } = useGame();
-  const navigate = useNavigate();
+  const location = useLocation();
   
-  // Redirect to main game page if already in a game
-  useEffect(() => {
-    if (game) {
-      navigate('/');
-    }
-  }, [game, navigate]);
+  // We don't redirect here anymore to ensure the join page is always accessible
+  // This allows players with join links to always see the join form
   
   return (
     <div className="min-h-screen bg-bubbly-light">

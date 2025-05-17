@@ -12,15 +12,16 @@ const GameContainer: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Check URL for join code
+  // Check URL for join code and redirect to join page
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const joinCode = params.get('join');
     
     if (joinCode) {
+      console.log("Join code detected in main page, redirecting:", joinCode);
       navigate(`/join?join=${joinCode}`, { replace: true });
     }
-  }, [location]);
+  }, [location, navigate]);
 
   // Determine which component to show based on game state
   if (!game) {

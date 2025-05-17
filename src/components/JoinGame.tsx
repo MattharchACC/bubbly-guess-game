@@ -25,7 +25,7 @@ const JoinGame: React.FC = () => {
       const joinCode = params.get('join');
       
       if (joinCode) {
-        console.log("Join code detected:", joinCode);
+        console.log("Join code detected in JoinGame component:", joinCode);
         setSessionCode(joinCode);
       }
     } catch (error) {
@@ -33,12 +33,12 @@ const JoinGame: React.FC = () => {
     }
   }, [location]);
 
-  // If already in a game, redirect to main page
+  // If already in a game and not on join page, redirect to main page
   useEffect(() => {
-    if (game) {
-      navigate('/');
+    if (game && !location.pathname.includes('/join')) {
+      navigate('/', { replace: true });
     }
-  }, [game, navigate]);
+  }, [game, navigate, location.pathname]);
   
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
