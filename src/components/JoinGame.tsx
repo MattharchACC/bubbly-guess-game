@@ -96,7 +96,7 @@ const JoinGame: React.FC = () => {
         <CardHeader>
           <CardTitle className="heading-lg">Join Game</CardTitle>
           <CardDescription>
-            Enter the session code and your name exactly as created by the host
+            Enter the session code and choose your player name
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -134,14 +134,14 @@ const JoinGame: React.FC = () => {
                 className="rounded-xl"
               />
               <p className="text-sm text-muted-foreground mt-1">
-                Use the exact player name created by the host
+                Choose any name you'd like to use for this game session
               </p>
             </div>
             
             <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-700">
               <Info className="h-4 w-4" />
               <AlertDescription>
-                Player names are case-sensitive and must match exactly with the names created by the host
+                All players with the link can join this game by entering their preferred name
               </AlertDescription>
             </Alert>
           </form>
