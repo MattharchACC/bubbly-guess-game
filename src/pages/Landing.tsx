@@ -1,10 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Wine, GlassWater, Users, Star, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { multiplayer, generateSessionCode } from '@/services/multiplayer';
+import { multiplayer } from '@/services/multiplayer';
 import { v4 as uuidv4 } from 'uuid';
 import { Game } from '@/types/game';
 import { toast } from "sonner";
@@ -13,26 +13,49 @@ const Landing = () => {
   const navigate = useNavigate();
   const [isCreating, setIsCreating] = useState(false);
   
+  // Clear any existing game session when landing page loads
+  useEffect(() => {
+    // Remove current game session from localStorage
+    localStorage.removeItem('gameSession');
+    localStorage.removeItem('lastActiveSession');
+    
+    // Clear any player-specific data that might be stored
+    const allKeys = Object.keys(localStorage);
+    for (const key of allKeys) {
+      if (key.startsWith('player:') || 
+          key.startsWith('playerName:') || 
+          key.startsWith('deviceId:') || 
+          key.startsWith('currentPlayerId:') || 
+          key.startsWith('gameSession:')) {
+        localStorage.removeItem(key);
+      }
+    }
+    
+    console.log("Cleared all game sessions and player data from localStorage");
+  }, []);
+  
   const startNewGame = async () => {
     setIsCreating(true);
     
     try {
       // Generate a unique game ID and session code
       const gameId = uuidv4();
-      const sessionCode = await generateSessionCode();
       
-      // Get device ID for host
-      const deviceId = localStorage.getItem('deviceId') || uuidv4();
-      if (!localStorage.getItem('deviceId')) {
-        localStorage.setItem('deviceId', deviceId);
-      }
+      // Get a new unique session code from the backend
+      const sessionCode = await multiplayer.generateSessionCode();
+      
+      // Force new device ID for each new game session to prevent host confusion
+      const deviceId = uuidv4();
+      localStorage.setItem('deviceId', deviceId);
+      
+      console.log(`Creating new game with new device ID: ${deviceId}`);
       
       // Create a basic game structure
       const initialGame: Game = {
         id: gameId,
         name: 'Prosecco Tasting Challenge',
         mode: 'pro', // Only using pro mode now
-        hostId: gameId, // Use game ID as host ID initially
+        hostId: deviceId, // Use the new device ID as host ID
         sessionCode,
         isComplete: false,
         currentRound: -1, // Not started yet
@@ -45,9 +68,6 @@ const Landing = () => {
       
       // Create the game session
       await multiplayer.createGameSession(initialGame);
-      
-      // Store the session code in localStorage for recovery
-      localStorage.setItem('lastCreatedSession', sessionCode);
       
       console.log(`New game created with session code: ${sessionCode}`);
       

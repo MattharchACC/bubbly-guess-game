@@ -1,3 +1,4 @@
+
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Game, SyncEvent } from '../types/game';
@@ -113,6 +114,13 @@ class Multiplayer {
   async joinGameSession(sessionCode: string, playerName: string): Promise<{ success: boolean, game?: Game, error?: string, playerId?: string }> {
     try {
       console.log(`Attempting to join game with session code: ${sessionCode}, player name: ${playerName}`);
+      
+      if (!playerName || playerName.trim() === '') {
+        return {
+          success: false,
+          error: "Please enter a valid player name."
+        };
+      }
       
       // Get device ID for this player
       const deviceId = getDeviceId();
@@ -235,39 +243,34 @@ class Multiplayer {
         });
       }
       
-      // Check for existing player by name and device ID
-      // First check: try to find a player with this device ID
+      // Look for existing player only by device ID, NOT by name
+      // This is where the "Matthias" bug was happening - we were finding players by name
       let existingPlayer = game.players.find(p => p.deviceId === deviceId);
       
-      // Second check: try to find a player with this name
-      if (!existingPlayer) {
-        existingPlayer = game.players.find(p => 
-          p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
-        );
-      }
-      
-      // Check for player ID in localStorage
-      const storedPlayerId = localStorage.getItem(`player:${sessionCode}`);
-      if (storedPlayerId && !existingPlayer) {
-        existingPlayer = game.players.find(p => p.id === storedPlayerId);
-      }
-      
+      // Clear any stale player data from localStorage
+      // We'll rely only on the deviceId to match players
+      localStorage.removeItem(`player:${sessionCode}`);
+
       let playerId: string;
       
       if (existingPlayer) {
-        // If player already exists, update their device ID
+        // If player already exists with this device ID, update their name to match the new one
         playerId = existingPlayer.id;
-        console.log(`Player ${playerName} (${playerId}) already exists in the game, updating device ID`);
+        console.log(`Device ID ${deviceId} already exists in the game, updating name to ${playerName}`);
         
         await supabase
           .from('players')
-          .update({ device_id: deviceId })
+          .update({ 
+            name: playerName,
+            device_id: deviceId
+          })
           .eq('id', existingPlayer.id);
           
-        // Update the player in our game object
+        // Update the player in our game object with the NEW name
         game.players = game.players.map(p => 
           p.id === existingPlayer!.id ? { 
             ...p, 
+            name: playerName,
             deviceId, 
             assignedToDeviceId: deviceId,
             isConnected: true
@@ -312,7 +315,7 @@ class Multiplayer {
         game.players.push(newPlayerObj);
       }
       
-      // Store player data in localStorage with more consistent keys
+      // Store player data in localStorage
       localStorage.setItem(`player:${sessionCode}`, playerId);
       localStorage.setItem(`playerName:${sessionCode}`, playerName);
       localStorage.setItem(`deviceId:${sessionCode}`, deviceId);
@@ -333,6 +336,7 @@ class Multiplayer {
         sessionCode,
         playerId,
         deviceId,
+        playerName, // Include player name in assignment event
         timestamp: Date.now()
       });
       

@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
 import GameSetup from './GameSetup';
 import PlayerRegistration from './PlayerRegistration';
@@ -14,11 +14,24 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
 const GameContainer: React.FC = () => {
-  const { game, isHost, currentPlayer, joinGame } = useGame();
+  const { game, isHost, currentPlayer, joinGame, resetGame } = useGame();
   const location = useLocation();
   const navigate = useNavigate();
+  const params = useParams();
   const [isRecoveringPlayer, setIsRecoveringPlayer] = useState(false);
   const [recoveryAttempted, setRecoveryAttempted] = useState(false);
+  
+  // Check if we're on the correct route for this game
+  useEffect(() => {
+    // If we have a game loaded but the URL doesn't match the game session code,
+    // either navigate to the correct URL or reset the game
+    if (game && params.sessionCode && game.sessionCode !== params.sessionCode) {
+      console.log(`URL session code ${params.sessionCode} doesn't match loaded game session ${game.sessionCode}`);
+      
+      // Reset the game and let the user navigate to the new game
+      resetGame();
+    }
+  }, [game, params.sessionCode, navigate, resetGame]);
   
   // Check URL for join code and redirect to join page
   useEffect(() => {
@@ -42,7 +55,7 @@ const GameContainer: React.FC = () => {
         assignedToDeviceId: currentPlayer.assignedToDeviceId
       });
       
-      // Store comprehensive player data in localStorage with game session code to help with recovery
+      // Store comprehensive player data in localStorage with game session code
       if (game.sessionCode) {
         localStorage.setItem(`player:${game.sessionCode}`, currentPlayer.id);
         localStorage.setItem(`playerName:${game.sessionCode}`, currentPlayer.name);
@@ -252,17 +265,19 @@ const GameContainer: React.FC = () => {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
-              onClick={handleManualRejoin}
-              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Try reconnecting
-            </Button>
-            <Button 
               onClick={() => navigate(`/join?join=${game.sessionCode}`, { replace: true })}
               variant="outline"
             >
-              Join with a different name
+              Join with a new name
+            </Button>
+            <Button 
+              onClick={() => {
+                resetGame();
+                navigate('/');
+              }}
+              className="bg-primary text-white"
+            >
+              Back to Home
             </Button>
           </div>
         </div>

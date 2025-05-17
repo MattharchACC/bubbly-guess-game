@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Game, GameMode, Player, Round, Drink, SyncEvent } from '../types/game';
 import { useToast } from "@/hooks/use-toast";
@@ -94,6 +93,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Store the player ID in localStorage for this session
         if (storedGame.sessionCode) {
           localStorage.setItem(`player:${storedGame.sessionCode}`, player.id);
+          localStorage.setItem(`playerName:${storedGame.sessionCode}`, player.name);
         }
       } else {
         console.log("No player found for current device");
@@ -109,6 +109,49 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })));
     }
   }, []);
+  
+  // Handle player assignment (matching device to player created by host)
+  const handlePlayerAssignment = (data: any) => {
+    if (!game || game.sessionCode !== data.sessionCode) return;
+    
+    console.log("Player assignment event:", data);
+    
+    // Update the player with the device ID AND name
+    const updatedGame = {
+      ...game,
+      players: game.players.map(player => 
+        player.id === data.playerId 
+          ? { 
+              ...player, 
+              deviceId: data.deviceId, 
+              assignedToDeviceId: data.deviceId,
+              name: data.playerName || player.name // Use the name from the event if provided
+            } 
+          : player
+      )
+    };
+    
+    setGame(updatedGame);
+    storeGameSession(updatedGame);
+    
+    // Update current player if this assignment is for the current device
+    const deviceId = getDeviceId();
+    if (deviceId === data.deviceId) {
+      const updatedPlayer = updatedGame.players.find(p => p.id === data.playerId);
+      if (updatedPlayer) {
+        setCurrentPlayer(updatedPlayer);
+      }
+    }
+    
+    // If this is the host device, broadcast the updated game state
+    if (isHost) {
+      multiplayer.emit(SyncEvent.GAME_STATE_UPDATED, {
+        sessionCode: game.sessionCode,
+        game: updatedGame,
+        timestamp: Date.now()
+      });
+    }
+  };
   
   // Set up timer for rounds
   useEffect(() => {
@@ -572,6 +615,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Store player ID in localStorage with game session code as key
           // This ensures we can recover the player after page refresh
           localStorage.setItem(`player:${result.game.sessionCode}`, foundPlayer.id);
+          localStorage.setItem(`playerName:${result.game.sessionCode}`, foundPlayer.name);
           
           // Update game with correct device ID assignments
           const updatedPlayers = result.game.players.map(p => 
@@ -614,6 +658,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             playerFromId.deviceId = deviceId;
             playerFromId.assignedToDeviceId = deviceId;
             localStorage.setItem(`player:${result.game.sessionCode}`, playerFromId.id);
+            localStorage.setItem(`playerName:${result.game.sessionCode}`, playerFromId.name);
             
             // Update game with the device ID assignments
             const updatedPlayers = result.game.players.map(p => 
@@ -949,7 +994,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setGame(null);
     setIsHost(false);
     setCurrentPlayer(null);
-    storeGameSession(null);
+    
+    // Clear ALL game-related localStorage items
+    localStorage.removeItem('gameSession');
+    localStorage.removeItem('lastActiveSession');
+    
+    // Clear any player-specific data that might be stored
+    const allKeys = Object.keys(localStorage);
+    for (const key of allKeys) {
+      if (key.startsWith('player:') || 
+          key.startsWith('playerName:') || 
+          key.startsWith('deviceId:') || 
+          key.startsWith('currentPlayerId:') || 
+          key.startsWith('gameSession:')) {
+        localStorage.removeItem(key);
+      }
+    }
     
     toast({
       title: "Game reset",

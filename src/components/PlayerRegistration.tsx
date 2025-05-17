@@ -44,7 +44,7 @@ const PlayerRegistration: React.FC = () => {
   if (!game) return null;
 
   const nonHostPlayers = game.players.filter(p => !p.isHost);
-
+  
   return (
     <div className="container mx-auto py-8 px-4">
       <Card className="max-w-xl mx-auto">
