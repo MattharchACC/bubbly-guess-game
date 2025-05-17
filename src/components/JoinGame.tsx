@@ -138,7 +138,7 @@ const JoinGame: React.FC = () => {
               </p>
             </div>
             
-            <Alert variant="info" className="bg-blue-50 border-blue-200 text-blue-700">
+            <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-700">
               <Info className="h-4 w-4" />
               <AlertDescription>
                 Player names are case-sensitive and must match exactly with the names created by the host
