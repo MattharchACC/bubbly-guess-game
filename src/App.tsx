@@ -40,11 +40,16 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            {/* Landing page is the root - starting point for creating new games */}
             <Route path="/" element={<Landing />} />
-            {/* Remove the generic /game route */}
+            
+            {/* Join page for players to join existing games */}
             <Route path="/join" element={<Join />} />
-            {/* This route will be used for both hosts and players */}
+            
+            {/* Each game has its own unique URL based on session code */}
             <Route path="/play/:sessionCode" element={<><Index /><JoinRedirect /></>} />
+            
+            {/* Catch all other routes */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

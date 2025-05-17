@@ -1,3 +1,4 @@
+
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Game, SyncEvent } from '../types/game';
@@ -17,6 +18,11 @@ export const storeGameSession = (game: Game | null): void => {
   if (game) {
     localStorage.setItem('gameSession', JSON.stringify(game));
     console.log(`Game session stored in localStorage: ${game.id}, with ${game.players.length} players`);
+    
+    // Also store the session code separately for easier recovery
+    if (game.sessionCode) {
+      localStorage.setItem('lastActiveSession', game.sessionCode);
+    }
   } else {
     localStorage.removeItem('gameSession');
     console.log('Game session removed from localStorage');
@@ -159,10 +165,14 @@ class Multiplayer {
     }
   }
 
-  // Join an existing game session without player validation
+  // Join an existing game session with improved player handling
   async joinGameSession(sessionCode: string, playerName: string): Promise<{ success: boolean, game?: Game, error?: string, playerId?: string }> {
     try {
       console.log(`Attempting to join game with session code: ${sessionCode}, player name: ${playerName}`);
+      
+      // Get device ID for this player
+      const deviceId = getDeviceId();
+      console.log(`Using device ID: ${deviceId}`);
       
       // Get game data first
       const { data: gameData, error: gameError } = await supabase
@@ -281,21 +291,29 @@ class Multiplayer {
         });
       }
       
-      // Get the device ID for this client
-      const deviceId = getDeviceId();
+      // Check for existing player by name and device ID
+      // First check: try to find a player with this device ID
+      let existingPlayer = game.players.find(p => p.deviceId === deviceId);
       
-      // Check if this player name already exists in the game
-      const existingPlayer = game.players.find(p => 
-        p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
-      );
+      // Second check: try to find a player with this name
+      if (!existingPlayer) {
+        existingPlayer = game.players.find(p => 
+          p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
+        );
+      }
+      
+      // Check for player ID in localStorage
+      const storedPlayerId = localStorage.getItem(`player:${sessionCode}`);
+      if (storedPlayerId && !existingPlayer) {
+        existingPlayer = game.players.find(p => p.id === storedPlayerId);
+      }
       
       let playerId: string;
-      let foundPlayer; // Add a variable to track the joined player
       
       if (existingPlayer) {
         // If player already exists, update their device ID
         playerId = existingPlayer.id;
-        console.log(`Player ${playerName} already exists in the game, updating device ID`);
+        console.log(`Player ${playerName} (${playerId}) already exists in the game, updating device ID`);
         
         await supabase
           .from('players')
@@ -304,10 +322,13 @@ class Multiplayer {
           
         // Update the player in our game object
         game.players = game.players.map(p => 
-          p.id === existingPlayer.id ? { ...p, deviceId, assignedToDeviceId: deviceId } : p
+          p.id === existingPlayer!.id ? { 
+            ...p, 
+            deviceId, 
+            assignedToDeviceId: deviceId,
+            isConnected: true
+          } : p
         );
-        
-        foundPlayer = existingPlayer;
       } else {
         // Create a new player
         playerId = uuidv4();
@@ -319,7 +340,7 @@ class Multiplayer {
           device_id: deviceId
         };
         
-        console.log(`Creating new player: ${playerName}`);
+        console.log(`Creating new player: ${playerName} (${playerId})`);
         
         // Add to database
         const { error: playerError } = await supabase
@@ -334,7 +355,7 @@ class Multiplayer {
           };
         }
         
-        // Add to our game object (and remember this one!)
+        // Add to our game object
         const newPlayerObj = {
           id: playerId,
           name: playerName.trim(),
@@ -345,8 +366,13 @@ class Multiplayer {
           isConnected: true
         };
         game.players.push(newPlayerObj);
-        foundPlayer = newPlayerObj; // make sure it's not undefined
       }
+      
+      // Store player data in localStorage with more consistent keys
+      localStorage.setItem(`player:${sessionCode}`, playerId);
+      localStorage.setItem(`playerName:${sessionCode}`, playerName);
+      localStorage.setItem(`deviceId:${sessionCode}`, deviceId);
+      localStorage.setItem(`currentPlayerId:${game.id}`, playerId);
       
       // Emit player joined event
       this.emit(SyncEvent.PLAYER_JOINED, {
@@ -377,7 +403,7 @@ class Multiplayer {
         timestamp: Date.now()
       });
 
-      return { success: true, game, playerId }; // always defined now
+      return { success: true, game, playerId };
     } catch (error) {
       console.error("Error joining game:", error);
       return {
@@ -431,6 +457,13 @@ class Multiplayer {
   // Submit a vote/guess with enhanced error handling
   submitVote(gameId: string, playerId: string, roundId: string, drinkId: string): void {
     console.log(`Submitting vote: gameId=${gameId}, playerId=${playerId}, roundId=${roundId}, drinkId=${drinkId}`);
+    
+    // Double check that we have the right player ID
+    const storedPlayerId = localStorage.getItem(`currentPlayerId:${gameId}`);
+    if (storedPlayerId && storedPlayerId !== playerId) {
+      console.warn(`Player ID mismatch: received ${playerId}, stored ${storedPlayerId}. Using stored ID.`);
+      playerId = storedPlayerId;
+    }
     
     // Check parameters
     if (!gameId || !playerId || !roundId || !drinkId) {

@@ -7,6 +7,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { toast } from "sonner";
 
 const Join = () => {
   const { game, currentPlayer, joinGame } = useGame();
@@ -51,14 +52,28 @@ const Join = () => {
         assignedToDeviceId: currentPlayer.assignedToDeviceId
       });
       
-      // Store player ID in localStorage with game session code for recovery
+      // Store player ID in localStorage with more consistent keys to prevent duplicate players
       if (game.sessionCode) {
+        // Store both player ID and device ID mapping
         localStorage.setItem(`player:${game.sessionCode}`, currentPlayer.id);
-        console.log(`Stored player ID (${currentPlayer.id}) in localStorage for session ${game.sessionCode}`);
-        
-        // Additionally store the player name for easier debugging and recovery
         localStorage.setItem(`playerName:${game.sessionCode}`, currentPlayer.name);
+        localStorage.setItem(`deviceId:${game.sessionCode}`, currentPlayer.deviceId || '');
+        localStorage.setItem(`gameSession:${game.sessionCode}`, game.id);
+        
+        // Also store which player this device represents in this game session
+        localStorage.setItem(`currentPlayerId:${game.id}`, currentPlayer.id);
+        
+        console.log(`Stored player data in localStorage for session ${game.sessionCode}:`, {
+          playerId: currentPlayer.id,
+          playerName: currentPlayer.name,
+          deviceId: currentPlayer.deviceId
+        });
       }
+      
+      // Show success toast
+      toast.success(`Joined as ${currentPlayer.name}`, {
+        description: "You've successfully joined the game"
+      });
       
       // Redirect to the unique game URL
       navigate(`/play/${game.sessionCode}`, { replace: true });
@@ -74,6 +89,7 @@ const Join = () => {
   const handleJoinError = (error: string) => {
     setIsJoining(false);
     setJoinError(error);
+    toast.error("Failed to join", { description: error });
   };
   
   return (

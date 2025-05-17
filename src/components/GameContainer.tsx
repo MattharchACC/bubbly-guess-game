@@ -9,14 +9,17 @@ import GameResults from './GameResults';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
+import { toast } from "sonner";
+import { SyncEvent, multiplayer } from '@/services/multiplayer';
 
 const GameContainer: React.FC = () => {
-  const { game, isHost, currentPlayer, joinGame } = useGame();
+  const { game, isHost, currentPlayer, joinGame, updatePlayer } = useGame();
   const location = useLocation();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
   const [isRecoveringPlayer, setIsRecoveringPlayer] = useState(false);
+  const [recoveryAttempted, setRecoveryAttempted] = useState(false);
   
   // Check URL for join code and redirect to join page
   useEffect(() => {
@@ -40,19 +43,36 @@ const GameContainer: React.FC = () => {
         assignedToDeviceId: currentPlayer.assignedToDeviceId
       });
       
-      // Store player ID in localStorage with game session code to help with recovery
+      // Store comprehensive player data in localStorage with game session code to help with recovery
       if (game.sessionCode) {
         localStorage.setItem(`player:${game.sessionCode}`, currentPlayer.id);
         localStorage.setItem(`playerName:${game.sessionCode}`, currentPlayer.name);
-        console.log(`Stored player ID (${currentPlayer.id}) and name (${currentPlayer.name}) in localStorage for session ${game.sessionCode}`);
+        localStorage.setItem(`deviceId:${game.sessionCode}`, currentPlayer.deviceId || '');
+        localStorage.setItem(`gameSession:${game.sessionCode}`, game.id);
+        localStorage.setItem(`currentPlayerId:${game.id}`, currentPlayer.id);
+        
+        console.log(`Stored comprehensive player data in localStorage for session ${game.sessionCode}`);
       }
       
-      toast({
-        title: "Joined game",
-        description: `You've joined as ${currentPlayer.name}`
-      });
+      // Notify host that player has joined (just in case)
+      if (multiplayer && game.sessionCode) {
+        multiplayer.emit(SyncEvent.PLAYER_JOINED, {
+          sessionCode: game.sessionCode,
+          playerId: currentPlayer.id,
+          playerName: currentPlayer.name,
+          deviceId: currentPlayer.deviceId,
+          timestamp: Date.now()
+        });
+      }
+      
+      // Show toast notification only once when player joins
+      if (!recoveryAttempted) {
+        toast.success(`Joined as ${currentPlayer.name}`, {
+          description: "You've joined the game successfully"
+        });
+      }
     }
-  }, [currentPlayer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentPlayer?.id, game, recoveryAttempted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Log important state information for debugging
   useEffect(() => {
@@ -87,16 +107,20 @@ const GameContainer: React.FC = () => {
   useEffect(() => {
     // If we have a game but no current player, try to recover player identity
     const recoverPlayer = async () => {
-      if (game && !currentPlayer && game.sessionCode) {
+      if (game && !currentPlayer && game.sessionCode && !recoveryAttempted) {
         setIsRecoveringPlayer(true);
+        setRecoveryAttempted(true);
         console.log("Attempting to recover player identity for session:", game.sessionCode);
         
-        // Check if we have stored player ID in localStorage
+        // Check if we have stored player ID for this specific session
         const playerId = localStorage.getItem(`player:${game.sessionCode}`);
         const playerName = localStorage.getItem(`playerName:${game.sessionCode}`);
+        const deviceId = localStorage.getItem(`deviceId:${game.sessionCode}`);
         
-        if (playerId) {
-          console.log("Found stored player ID:", playerId);
+        console.log("Recovery data from localStorage:", { playerId, playerName, deviceId });
+        
+        if (playerId && playerName) {
+          console.log("Found stored player data:", { playerId, playerName });
           
           // Find the player in the game
           const player = game.players.find(p => p.id === playerId);
@@ -104,21 +128,27 @@ const GameContainer: React.FC = () => {
           if (player) {
             console.log("Found player in game, attempting to rejoin:", player.name);
             
-            // Re-join the game with the stored player info
+            // Re-join the game with the stored player info to re-establish connection
             try {
               const result = await joinGame(game.sessionCode, player.name);
               console.log("Rejoin result:", result);
               
               if (result.success) {
-                toast({
-                  title: "Reconnected",
-                  description: `Welcome back, ${player.name}!`
+                toast.success(`Welcome back, ${player.name}!`, {
+                  description: "Your session has been restored"
+                });
+                
+                // Notify host about reconnection
+                multiplayer.emit(SyncEvent.PLAYER_JOINED, {
+                  sessionCode: game.sessionCode,
+                  playerId: player.id,
+                  playerName: player.name,
+                  deviceId: deviceId || '',
+                  timestamp: Date.now()
                 });
               } else {
-                toast({
-                  title: "Reconnection failed",
-                  description: result.error || "Could not restore your player identity",
-                  variant: "destructive"
+                toast.error("Reconnection failed", {
+                  description: result.error || "Could not restore your player identity"
                 });
               }
             } catch (error) {
@@ -133,21 +163,20 @@ const GameContainer: React.FC = () => {
               console.log("Rejoin by name result:", result);
               
               if (result.success) {
-                toast({
-                  title: "Reconnected",
-                  description: `Welcome back, ${playerName}!`
+                toast.success(`Welcome back, ${playerName}!`, {
+                  description: "Your session has been restored"
                 });
               } else {
-                toast({
-                  title: "Reconnection failed",
-                  description: result.error || "Could not restore your player identity",
-                  variant: "destructive"
+                toast.error("Reconnection failed", {
+                  description: result.error || "Could not restore your player identity"
                 });
               }
             } catch (error) {
               console.error("Error rejoining game by name:", error);
             }
           }
+        } else {
+          console.log("No stored player data found for this session");
         }
         
         setIsRecoveringPlayer(false);
@@ -155,7 +184,47 @@ const GameContainer: React.FC = () => {
     };
     
     recoverPlayer();
-  }, [game, currentPlayer, joinGame, toast]);
+  }, [game, currentPlayer, joinGame, recoveryAttempted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Try to rejoin manually
+  const handleManualRejoin = async () => {
+    if (!game || !game.sessionCode) return;
+    
+    setIsRecoveringPlayer(true);
+    const playerName = localStorage.getItem(`playerName:${game.sessionCode}`) || 
+                       localStorage.getItem('playerName') || 
+                       '';
+                       
+    if (playerName) {
+      try {
+        console.log("Attempting manual rejoin as:", playerName);
+        const result = await joinGame(game.sessionCode, playerName);
+        
+        if (result.success) {
+          toast.success(`Reconnected as ${playerName}`, {
+            description: "You've rejoined the game successfully"
+          });
+        } else {
+          toast.error("Rejoin failed", {
+            description: result.error || "Could not rejoin the game"
+          });
+          
+          // Redirect to join page
+          navigate(`/join?join=${game.sessionCode}`, { replace: true });
+        }
+      } catch (error) {
+        console.error("Error in manual rejoin:", error);
+        toast.error("Rejoin error", {
+          description: "An error occurred while trying to rejoin"
+        });
+      }
+    } else {
+      // No stored player name, redirect to join page
+      navigate(`/join?join=${game.sessionCode}`, { replace: true });
+    }
+    
+    setIsRecoveringPlayer(false);
+  };
 
   // If we're still trying to recover the player
   if (isRecoveringPlayer) {
@@ -182,12 +251,21 @@ const GameContainer: React.FC = () => {
           <p className="text-sm text-muted-foreground mb-6">
             Try using the join link again or ask the host to share a new link.
           </p>
-          <Button 
-            onClick={() => navigate(`/join?join=${game.sessionCode}`, { replace: true })}
-            className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
-          >
-            Try joining again
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              onClick={handleManualRejoin}
+              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Try reconnecting
+            </Button>
+            <Button 
+              onClick={() => navigate(`/join?join=${game.sessionCode}`, { replace: true })}
+              variant="outline"
+            >
+              Join with a different name
+            </Button>
+          </div>
         </div>
       </div>
     );
