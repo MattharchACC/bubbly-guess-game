@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -38,13 +37,13 @@ const GameRound: React.FC = () => {
   const isLastRound = game.currentRound === game.rounds.length - 1;
   
   const handleSelect = (playerId: string, drinkId: string) => {
-    // Only allow selection if player can guess (not host)
+    // Allow selection if player can guess (now includes host)
     if (canPlayerGuess(playerId)) {
       submitGuess(playerId, currentRound.id, drinkId);
     } else {
       toast({
         title: "Cannot make selection",
-        description: "As the host, you cannot make guesses",
+        description: "You can only make guesses for your assigned player",
         variant: "destructive"
       });
     }
@@ -97,11 +96,11 @@ const GameRound: React.FC = () => {
   };
 
   const allPlayersGuessed = game.players.every(
-    player => player.isHost || Object.keys(player.guesses).includes(currentRound.id)
+    player => Object.keys(player.guesses).includes(currentRound.id)
   );
   
   // Determine if the current player can interact
-  const canInteract = currentPlayer && !currentPlayer.isHost;
+  const canInteract = currentPlayer !== null;
 
   const renderDrinkOption = (drink, player) => {
     const isCurrentUserPlayer = currentPlayer && currentPlayer.id === player.id;
@@ -237,26 +236,18 @@ const GameRound: React.FC = () => {
                       {isPlayerHost && ' (Host)'}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      {isPlayerHost 
-                        ? 'Host is managing the game and does not make guesses' 
-                        : isCurrentUserPlayer && playerCanGuess
-                          ? 'Select which drink you think this is' 
-                          : isCurrentUserPlayer
-                            ? 'You cannot make guesses for this player'
-                            : `View ${player.name}'s selections`
+                      {isCurrentUserPlayer && playerCanGuess
+                        ? 'Select which drink you think this is' 
+                        : isCurrentUserPlayer
+                          ? 'You cannot make guesses for this player'
+                          : `View ${player.name}'s selections`
                       }
                     </p>
                   </div>
                   
-                  {isPlayerHost ? (
-                    <div className="text-center p-6 bg-muted/30 rounded-xl">
-                      <p>As the host, {isCurrentUserPlayer ? 'you are' : 'this player is'} responsible for managing the game</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-3">
-                      {game.drinks.map(drink => renderDrinkOption(drink, player))}
-                    </div>
-                  )}
+                  <div className="grid grid-cols-1 gap-3">
+                    {game.drinks.map(drink => renderDrinkOption(drink, player))}
+                  </div>
                 </TabsContent>
               );
             })}

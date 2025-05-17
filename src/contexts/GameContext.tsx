@@ -366,13 +366,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ? `${window.location.origin}/join?join=${game.sessionCode}` 
     : '';
 
-  // Add a function to determine if a player can make guesses (hosts cannot guess)
+  // Modify this function to allow hosts to guess as well
   const canPlayerGuess = (playerId: string): boolean => {
     if (!game) return false;
     
     const player = game.players.find(p => p.id === playerId);
-    // Only non-host players can guess
-    if (!player || player.isHost) return false;
+    if (!player) return false;
     
     // The current device must be assigned to this player
     const deviceId = getDeviceId();
