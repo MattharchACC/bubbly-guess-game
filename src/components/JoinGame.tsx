@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
@@ -80,7 +81,8 @@ const JoinGame: React.FC = () => {
           title: "Joined game",
           description: "Successfully joined the game session"
         });
-        navigate('/');
+        // The critical fix: Always include sessionCode in the navigation path
+        navigate(`/`);
       }
     } catch (error) {
       console.error("Join error:", error);

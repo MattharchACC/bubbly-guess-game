@@ -3,11 +3,12 @@ import React from 'react';
 import { Wine } from 'lucide-react';
 import JoinGame from '@/components/JoinGame';
 import { useGame } from '@/contexts/GameContext';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const Join = () => {
   const { game } = useGame();
   const location = useLocation();
+  const navigate = useNavigate();
   
   // We don't redirect here anymore to ensure the join page is always accessible
   // This allows players with join links to always see the join form
