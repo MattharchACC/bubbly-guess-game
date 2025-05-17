@@ -31,6 +31,15 @@ const TastingCards: React.FC<TastingCardsProps> = ({ showResults = false, onSele
     ? game.players
     : game.players.filter(p => p.id === currentPlayer?.id);
   
+  // If no players are visible (likely because currentPlayer is null), show a message
+  if (visiblePlayers.length === 0) {
+    return (
+      <div className="text-center p-8">
+        <p>Loading player data...</p>
+      </div>
+    );
+  }
+  
   return (
     <Tabs value={selectedTab} onValueChange={setSelectedTab}>
       <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 mb-4 rounded-xl overflow-hidden bg-gray-100">

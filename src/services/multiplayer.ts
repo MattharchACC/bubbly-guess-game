@@ -153,7 +153,7 @@ class Multiplayer {
   }
 
   // Join an existing game session without player validation
-  async joinGameSession(sessionCode: string, playerName: string): Promise<{ success: boolean, game?: Game, error?: string }> {
+  async joinGameSession(sessionCode: string, playerName: string): Promise<{ success: boolean, game?: Game, error?: string, playerId?: string }> {
     try {
       console.log(`Attempting to join game with session code: ${sessionCode}, player name: ${playerName}`);
       
@@ -283,6 +283,7 @@ class Multiplayer {
       );
       
       let playerId: string;
+      let foundPlayer; // Add a variable to track the joined player
       
       if (existingPlayer) {
         // If player already exists, update their device ID
@@ -298,6 +299,8 @@ class Multiplayer {
         game.players = game.players.map(p => 
           p.id === existingPlayer.id ? { ...p, deviceId, assignedToDeviceId: deviceId } : p
         );
+        
+        foundPlayer = existingPlayer;
       } else {
         // Create a new player
         playerId = uuidv4();
@@ -334,6 +337,9 @@ class Multiplayer {
           guesses: {},
           isConnected: true
         });
+        
+        // Make the new player findable
+        foundPlayer = game.players[game.players.length - 1];
       }
       
       // Emit player joined event
@@ -367,7 +373,8 @@ class Multiplayer {
 
       return {
         success: true,
-        game
+        game,
+        playerId // Return the player ID
       };
     } catch (error) {
       console.error("Error joining game:", error);

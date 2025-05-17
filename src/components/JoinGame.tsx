@@ -70,11 +70,9 @@ const JoinGame: React.FC = () => {
         });
         setIsJoining(false); // Make sure to reset joining state on error
       } else {
-        // Successfully joined - Store the player ID in localStorage
-        if (result.playerId) {
-          localStorage.setItem(`player:${sessionCode.trim()}`, result.playerId);
-          console.log(`Saved player ID ${result.playerId} to localStorage for game ${sessionCode}`);
-        }
+        // Always save the player ID to localStorage
+        localStorage.setItem(`player:${sessionCode.trim()}`, result.playerId);
+        console.log(`Saved player ID ${result.playerId} to localStorage for game ${sessionCode}`);
         
         toast({
           title: "Joined game",

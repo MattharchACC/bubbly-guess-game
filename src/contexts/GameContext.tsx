@@ -557,7 +557,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           console.error("Could not find any player matching the joining user");
           return {
-            success: true
+            success: true,
+            playerId: result.playerId // Pass through the playerId from multiplayer
           };
         }
       }
