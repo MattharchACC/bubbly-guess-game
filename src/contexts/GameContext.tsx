@@ -368,14 +368,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Allow hosts to guess as well
   const canPlayerGuess = (playerId: string): boolean => {
-    if (!game) return false;
+    if (!game || !currentPlayer) return false;
     
-    const player = game.players.find(p => p.id === playerId);
-    if (!player) return false;
+    // Host cannot make guesses
+    if (currentPlayer.isHost) return false;
+    
+    // Only the player themselves can make guesses
+    if (currentPlayer.id !== playerId) return false;
     
     // The current device must be assigned to this player
     const deviceId = getDeviceId();
-    return player.deviceId === deviceId || player.assignedToDeviceId === deviceId;
+    return currentPlayer.deviceId === deviceId || currentPlayer.assignedToDeviceId === deviceId;
   };
 
   const setUpGame = async (

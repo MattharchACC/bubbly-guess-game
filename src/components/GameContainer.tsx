@@ -8,7 +8,7 @@ import GameRound from './GameRound';
 import GameResults from './GameResults';
 
 const GameContainer: React.FC = () => {
-  const { game } = useGame();
+  const { game, isHost, currentPlayer } = useGame();
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -22,6 +22,23 @@ const GameContainer: React.FC = () => {
       navigate(`/join?join=${joinCode}`, { replace: true });
     }
   }, [location, navigate]);
+
+  // Log important state information for debugging
+  useEffect(() => {
+    if (game && currentPlayer) {
+      console.log("Game Container - Current state:", {
+        isHost,
+        currentPlayer: {
+          id: currentPlayer.id,
+          name: currentPlayer.name,
+          isHost: currentPlayer.isHost
+        },
+        gameMode: game.mode,
+        currentRound: game.currentRound,
+        playersCount: game.players.length
+      });
+    }
+  }, [game, currentPlayer, isHost]);
 
   // Determine which component to show based on game state
   if (!game) {
