@@ -5,7 +5,7 @@ import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowRight, UserPlus, AlertCircle } from 'lucide-react';
+import { ArrowRight, UserPlus, AlertCircle, Info } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -137,6 +137,13 @@ const JoinGame: React.FC = () => {
                 Use the exact player name created by the host
               </p>
             </div>
+            
+            <Alert variant="info" className="bg-blue-50 border-blue-200 text-blue-700">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Player names are case-sensitive and must match exactly with the names created by the host
+              </AlertDescription>
+            </Alert>
           </form>
         </CardContent>
         <CardFooter className="flex justify-end">

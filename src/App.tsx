@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import React, { useEffect } from 'react';
 import { GameProvider } from "./contexts/GameContext";
 import Index from "./pages/Index";
@@ -12,21 +12,22 @@ import Join from "./pages/Join";
 
 const queryClient = new QueryClient();
 
-// Component to handle join parameter in URL with improved logging
+// Component to handle join parameter in URL with improved handling
 const JoinRedirect = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   
   useEffect(() => {
     console.log("Current location:", location.pathname, location.search);
-  }, [location]);
-  
-  const params = new URLSearchParams(location.search);
-  const joinCode = params.get('join');
-  
-  if (joinCode) {
-    console.log("Redirecting to join page with code:", joinCode);
-    return <Navigate to={`/join?join=${joinCode}`} replace />;
-  }
+    
+    const params = new URLSearchParams(location.search);
+    const joinCode = params.get('join');
+    
+    if (joinCode) {
+      console.log("Join code detected in main app, redirecting to join page:", joinCode);
+      navigate(`/join?join=${joinCode}`, { replace: true });
+    }
+  }, [location, navigate]);
   
   return null;
 };

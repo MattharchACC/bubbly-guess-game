@@ -152,12 +152,88 @@ class Multiplayer {
     }
   }
 
-  // Join an existing game session with improved player name matching
+  // Join an existing game session with direct database validation
   async joinGameSession(sessionCode: string, playerName: string): Promise<{ success: boolean, game?: Game, error?: string }> {
     try {
       console.log(`Attempting to join game with session code: ${sessionCode}, player name: ${playerName}`);
       
-      // Get the game by session code
+      // Step 1: First, query the database directly for matching players to ensure we're getting the most up-to-date data
+      const normalizedInputName = this.normalizePlayerName(playerName);
+      console.log(`Looking for player with normalized name: "${normalizedInputName}" in session: ${sessionCode}`);
+      
+      // Get game data first
+      const { data: gameData, error: gameError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('session_code', sessionCode)
+        .single();
+
+      if (gameError || !gameData) {
+        console.error('Error fetching game:', gameError);
+        return {
+          success: false,
+          error: "Game not found. Check the session code and try again."
+        };
+      }
+
+      // Then get players for this specific game
+      const { data: playersData, error: playersError } = await supabase
+        .from('players')
+        .select('*')
+        .eq('game_id', gameData.id);
+
+      if (playersError) {
+        console.error('Error fetching players:', playersError);
+        return {
+          success: false,
+          error: "Could not retrieve player data for this game."
+        };
+      }
+
+      console.log(`Found ${playersData.length} players for game ${gameData.id}`);
+      
+      // Debug log all players to see what we're working with
+      playersData.forEach((p: any) => {
+        console.log(`Player in DB: "${p.name}", id: ${p.id}, is_host: ${p.is_host}, device_id: ${p.device_id}`);
+      });
+      
+      // Try to find a matching player with normalized name comparison
+      let matchingDbPlayer = null;
+      for (const player of playersData) {
+        if (player.is_host) {
+          console.log(`Skipping host player: ${player.name}`);
+          continue;
+        }
+        
+        if (player.device_id) {
+          console.log(`Player ${player.name} already has a device assigned: ${player.device_id}`);
+          // Don't skip players with device_id as they might be rejoining
+        }
+        
+        const normalizedDbName = this.normalizePlayerName(player.name);
+        console.log(`Comparing DB name: "${normalizedDbName}" with input: "${normalizedInputName}"`);
+        
+        if (normalizedDbName === normalizedInputName) {
+          console.log(`✓ MATCH FOUND in database for player: ${player.name}`);
+          matchingDbPlayer = player;
+          break;
+        }
+      }
+      
+      if (!matchingDbPlayer) {
+        console.log("No matching player found in database. Available players:", 
+          playersData.filter((p: any) => !p.is_host).map((p: any) => p.name));
+        
+        return {
+          success: false,
+          error: `Player name "${playerName}" was not found. Please use exactly one of the player names created by the host.`
+        };
+      }
+      
+      // If we found a match, now proceed to fetch the full game data with all relationships
+      console.log(`Found matching player in database: ${matchingDbPlayer.name} (${matchingDbPlayer.id})`);
+      
+      // Get the full game data with relationships
       const { data, error } = await supabase
         .from('games')
         .select(`
@@ -169,10 +245,10 @@ class Multiplayer {
         .single();
 
       if (error || !data) {
-        console.error('Error fetching game:', error);
+        console.error('Error fetching complete game data:', error);
         return {
           success: false,
-          error: "Game not found. Check the session code and try again."
+          error: "Error retrieving game data. Please try again."
         };
       }
 
@@ -253,75 +329,35 @@ class Multiplayer {
       // Get the device ID for this client
       const deviceId = getDeviceId();
       
-      // Log all available player names for debugging
-      console.log("All players in game:", game.players.map(p => ({
-        name: p.name,
-        isHost: p.isHost,
-        deviceId: p.deviceId,
-        assigned: p.assignedToDeviceId
-      })));
+      // Use the matching player we found earlier to link to this device
+      console.log(`Assigning player ${matchingDbPlayer.name} to device: ${deviceId}`);
       
-      // Debug the exact input value we're trying to match
-      console.log(`Looking for match with name: "${playerName}"`);
+      // Find the player in our game object using the id from matchingDbPlayer
+      const matchingPlayer = game.players.find(p => p.id === matchingDbPlayer.id);
       
-      // Improved player name matching with more thorough normalization and debug logging
-      const normalizePlayerName = (name: string): string => {
-        return name.trim().toLowerCase().replace(/\s+/g, ' ');
-      };
-      
-      const normalizedInputName = normalizePlayerName(playerName);
-      
-      // Find matching player with normalized comparison and detailed logging
-      const matchingPlayer = game.players.find(p => {
-        if (p.isHost || p.assignedToDeviceId) {
-          console.log(`Skipping player ${p.name} (isHost: ${p.isHost}, already assigned: ${!!p.assignedToDeviceId})`);
-          return false;
-        }
-        
-        const normalizedPlayerName = normalizePlayerName(p.name);
-        
-        console.log(`Comparing: "${normalizedPlayerName}" with "${normalizedInputName}"`);
-        const isMatch = normalizedPlayerName === normalizedInputName;
-        
-        if (isMatch) {
-          console.log(`✓ MATCH FOUND for player: ${p.name}`);
-        }
-        
-        return isMatch;
-      });
-      
-      if (matchingPlayer) {
-        console.log(`Found matching player: ${matchingPlayer.name} for device: ${deviceId}`);
-        
-        // Emit player assignment event
-        this.emit(SyncEvent.PLAYER_ASSIGNED, {
-          sessionCode,
-          playerId: matchingPlayer.id,
-          playerName: matchingPlayer.name,
-          deviceId,
-          timestamp: Date.now()
-        });
-        
-        // Don't create a new player, but update the existing one with this device ID
-        game.players = game.players.map(p => 
-          p.id === matchingPlayer.id 
-            ? { ...p, deviceId, assignedToDeviceId: deviceId }
-            : p
-        );
-      } else {
-        // Log all player names to help debug matching issues
-        console.log("Available players:", game.players.map(p => ({
-          name: p.name, 
-          isHost: p.isHost,
-          hasDevice: !!p.assignedToDeviceId
-        })));
-        
-        // No match found - this could mean they're using a different name than what the host created
+      if (!matchingPlayer) {
+        console.error("Unexpected error: Matching player not found in game data");
         return {
-          success: false,
-          error: `Player name "${playerName}" was not found. Please use exactly one of the player names created by the host.`
+          success: false, 
+          error: "An unexpected error occurred. Please try again."
         };
       }
+      
+      // Emit player assignment event
+      this.emit(SyncEvent.PLAYER_ASSIGNED, {
+        sessionCode,
+        playerId: matchingPlayer.id,
+        playerName: matchingPlayer.name,
+        deviceId,
+        timestamp: Date.now()
+      });
+      
+      // Update the player with this device ID
+      game.players = game.players.map(p => 
+        p.id === matchingPlayer.id 
+          ? { ...p, deviceId, assignedToDeviceId: deviceId }
+          : p
+      );
       
       console.log("Final game state after joining:", game);
       
@@ -330,7 +366,7 @@ class Multiplayer {
         sessionCode,
         playerName,
         deviceId,
-        playerId: matchingPlayer?.id,
+        playerId: matchingPlayer.id,
         timestamp: Date.now()
       });
 
@@ -345,6 +381,11 @@ class Multiplayer {
         error: "Failed to join the game. Please try again."
       };
     }
+  }
+
+  // Helper function to normalize player names for consistent comparison
+  private normalizePlayerName(name: string): string {
+    return name.trim().toLowerCase().replace(/\s+/g, ' ');
   }
 
   // Add event listener
