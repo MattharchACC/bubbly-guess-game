@@ -31,6 +31,11 @@ const JoinRedirect = () => {
   return null;
 };
 
+// Create a Play page component that renders the Index component
+const Play = () => {
+  return <Index />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <GameProvider>
@@ -41,6 +46,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<><Index /><JoinRedirect /></>} />
             <Route path="/join" element={<Join />} />
+            <Route path="/play/:sessionCode" element={<Play />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
