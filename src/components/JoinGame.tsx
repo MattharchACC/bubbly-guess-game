@@ -62,6 +62,7 @@ const JoinGame: React.FC = () => {
           description: result.error || "Could not connect to the game session",
           variant: "destructive"
         });
+        setIsJoining(false); // Make sure to reset joining state on error
       } else {
         // Successfully joined
         toast({
@@ -78,8 +79,7 @@ const JoinGame: React.FC = () => {
         description: "An unexpected error occurred",
         variant: "destructive"
       });
-    } finally {
-      setIsJoining(false);
+      setIsJoining(false); // Reset joining state on error
     }
   };
   
