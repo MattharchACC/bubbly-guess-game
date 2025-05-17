@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
@@ -71,7 +70,12 @@ const JoinGame: React.FC = () => {
         });
         setIsJoining(false); // Make sure to reset joining state on error
       } else {
-        // Successfully joined
+        // Successfully joined - Store the player ID in localStorage
+        if (result.playerId) {
+          localStorage.setItem(`player:${sessionCode.trim()}`, result.playerId);
+          console.log(`Saved player ID ${result.playerId} to localStorage for game ${sessionCode}`);
+        }
+        
         toast({
           title: "Joined game",
           description: "Successfully joined the game session"

@@ -15,7 +15,7 @@ type GameContextType = {
   completeGame: () => void;
   resetGame: () => void;
   endGame: () => void;
-  joinGame: (sessionCode: string, playerName: string) => Promise<{ success: boolean, error?: string }>;
+  joinGame: (sessionCode: string, playerName: string) => Promise<{ success: boolean, error?: string, playerId?: string }>;
   isHost: boolean;
   currentPlayer: Player | null;
   shareableLink: string;
@@ -40,8 +40,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const deviceId = getDeviceId();
       setIsHost(storedGame.hostId === deviceId);
       
-      // Find current player based on device ID
-      const player = storedGame.players.find(p => p.deviceId === deviceId || p.assignedToDeviceId === deviceId);
+      // Find current player based on device ID first, then check game-specific localStorage key
+      let player = storedGame.players.find(p => p.deviceId === deviceId || p.assignedToDeviceId === deviceId);
+      
+      // If player not found by device ID, try to find by stored player ID in localStorage
+      if (!player && storedGame.sessionCode) {
+        const playerId = localStorage.getItem(`player:${storedGame.sessionCode}`);
+        if (playerId) {
+          player = storedGame.players.find(p => p.id === playerId);
+          // If found this way, update the device IDs for future reference
+          if (player) {
+            player.deviceId = deviceId;
+            player.assignedToDeviceId = deviceId;
+          }
+        }
+      }
+      
       setCurrentPlayer(player || null);
       
       // Log player assignments for debugging
@@ -467,7 +481,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const joinGame = async (sessionCode: string, playerName: string): Promise<{ success: boolean, error?: string }> => {
+  // Update joinGame to return the player ID
+  const joinGame = async (sessionCode: string, playerName: string): Promise<{ success: boolean, error?: string, playerId?: string }> => {
     try {
       console.log(`Joining game with session code: ${sessionCode}, player name: ${playerName}`);
       
@@ -533,16 +548,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             deviceId,
             timestamp: Date.now()
           });
+
+          // Return the player ID for saving to localStorage
+          return { 
+            success: true,
+            playerId: foundPlayer.id
+          };
         } else {
           console.error("Could not find any player matching the joining user");
+          return {
+            success: true
+          };
         }
-        
-        toast({
-          title: "Joined game",
-          description: `You've joined ${result.game.name}`,
-        });
-        
-        return { success: true };
       }
       
       return { 
